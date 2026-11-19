@@ -1,12 +1,14 @@
 const PROTECTED_DOT_TOKEN = '\uE000';
-const DEFAULT_MAX_CHUNK_CHARS = 220;
-const DEFAULT_STREAMING_FIRST_CHARS = 75;
-const DEFAULT_STREAMING_SECOND_CHARS = 140;
-const DEFAULT_MIN_LEAD_CHARS = 18;
+const DEFAULT_MAX_CHUNK_CHARS = 180;
+const DEFAULT_STREAMING_FIRST_CHARS = 48;
+const DEFAULT_STREAMING_SECOND_CHARS = 95;
+const DEFAULT_STREAMING_THIRD_CHARS = 140;
+const DEFAULT_MIN_LEAD_CHARS = 16;
 
 export interface StreamingSegmentOptions {
   readonly firstChunkMaxChars?: number;
   readonly secondChunkMaxChars?: number;
+  readonly thirdChunkMaxChars?: number;
   readonly maxChunkChars?: number;
   readonly minLeadChars?: number;
 }
@@ -188,6 +190,10 @@ export function segmentForStreaming(
     options.secondChunkMaxChars ?? DEFAULT_STREAMING_SECOND_CHARS,
     maxChunkChars
   );
+  const thirdChunkMaxChars = Math.min(
+    options.thirdChunkMaxChars ?? DEFAULT_STREAMING_THIRD_CHARS,
+    maxChunkChars
+  );
   const minLeadChars = options.minLeadChars ?? DEFAULT_MIN_LEAD_CHARS;
 
   const baseSentences = segmentSentences(text, lang, maxChunkChars);
@@ -208,11 +214,19 @@ export function segmentForStreaming(
   output.push(leadChunk);
 
   const secondSplit = splitLeadFragment(remainder, secondChunkMaxChars, minLeadChars);
-  if (secondSplit) {
-    output.push(secondSplit[0]);
-    output.push(...splitLongSentence(secondSplit[1], maxChunkChars));
-  } else {
+  if (!secondSplit) {
     output.push(remainder);
+    return [...output, ...rest];
+  }
+
+  output.push(secondSplit[0]);
+
+  const thirdSplit = splitLeadFragment(secondSplit[1], thirdChunkMaxChars, minLeadChars);
+  if (thirdSplit) {
+    output.push(thirdSplit[0]);
+    output.push(...splitLongSentence(thirdSplit[1], maxChunkChars));
+  } else {
+    output.push(secondSplit[1]);
   }
 
   return [...output, ...rest];

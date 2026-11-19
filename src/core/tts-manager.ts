@@ -12,9 +12,13 @@ export interface PlayRequestOptions {
   readonly voiceId?: string;
   readonly rate: PlaybackRate;
   readonly source: QueueSource;
+  readonly pullMoreChunks?: () => readonly string[];
+  readonly hasMoreChunks?: () => boolean;
 }
 
 export type StateListener = (state: SentenceQueueState) => void;
+
+const PROCEDURAL_LOW_WATER_MARK = 3;
 
 export class TTSManager {
   private engine: TTSEngineInterface;
@@ -22,6 +26,8 @@ export class TTSManager {
   private readonly listeners = new Set<StateListener>();
   private activeController: AbortController | null = null;
   private activeVoiceId: string | undefined;
+  private activePullMoreChunks: (() => readonly string[]) | null = null;
+  private activeHasMoreChunks: (() => boolean) | null = null;
   private playbackToken = 0;
   private itemSeq = 0;
 
@@ -60,8 +66,17 @@ export class TTSManager {
       return;
     }
 
+    const wasActive =
+      this.state.status === 'playing' ||
+      this.state.status === 'loading' ||
+      this.state.status === 'paused';
     this.cancelCurrentUtterance();
+    if (wasActive) {
+      this.engine.stop();
+    }
     this.activeVoiceId = options.voiceId;
+    this.activePullMoreChunks = options.pullMoreChunks ?? null;
+    this.activeHasMoreChunks = options.hasMoreChunks ?? null;
 
     const items: SentenceItem[] = cleanSentences.map((text, index) => ({
       id: `seg-${++this.itemSeq}`,
@@ -77,6 +92,7 @@ export class TTSManager {
       rate: options.rate,
       detectedLang: options.lang,
       source: options.source,
+      hasMoreChunks: this.activeHasMoreChunks?.() ?? false,
       error: null,
     });
 
@@ -224,6 +240,8 @@ export class TTSManager {
 
   public stop(): void {
     this.cancelCurrentUtterance();
+    this.activePullMoreChunks = null;
+    this.activeHasMoreChunks = null;
     this.engine.stop();
     this.setState({
       status: 'idle',
@@ -261,10 +279,63 @@ export class TTSManager {
     this.activeController = null;
   }
 
+  private ensureProceduralBuffer(currentIndex: number): void {
+    if (
+      !this.activePullMoreChunks ||
+      (this.state.status !== 'playing' &&
+        this.state.status !== 'loading' &&
+        this.state.status !== 'paused')
+    ) {
+      return;
+    }
+
+    let items = this.state.items;
+    let addedAny = false;
+
+    while (items.length - 1 - currentIndex < PROCEDURAL_LOW_WATER_MARK) {
+      const nextBatch = this.activePullMoreChunks()
+        .map((s) => s.trim())
+        .filter(Boolean);
+      if (nextBatch.length === 0) {
+        this.activePullMoreChunks = null;
+        break;
+      }
+
+      const baseIndex = items.length;
+      const lang = this.state.detectedLang;
+      const appended: SentenceItem[] = nextBatch.map((text, offset) => ({
+        id: `seg-${++this.itemSeq}`,
+        index: baseIndex + offset,
+        text,
+        lang,
+      }));
+      items = [...items, ...appended];
+      addedAny = true;
+
+      if (this.activeHasMoreChunks && !this.activeHasMoreChunks()) {
+        this.activePullMoreChunks = null;
+        break;
+      }
+    }
+
+    const stillHasMore = Boolean(
+      this.activePullMoreChunks && (this.activeHasMoreChunks?.() ?? true)
+    );
+    if (addedAny || Boolean(this.state.hasMoreChunks) !== stillHasMore) {
+      this.setState({
+        ...this.state,
+        items,
+        hasMoreChunks: stillHasMore,
+      });
+    }
+  }
+
   private async speakAtIndex(index: number): Promise<void> {
     if (this.state.status !== 'playing') {
       return;
     }
+
+    this.ensureProceduralBuffer(index);
 
     const item = this.state.items[index];
     if (!item) {
@@ -335,6 +406,7 @@ export class TTSManager {
       }
 
       const nextIndex = index + 1;
+      this.ensureProceduralBuffer(nextIndex);
       if (nextIndex < this.state.items.length) {
         this.setState({
           ...this.state,

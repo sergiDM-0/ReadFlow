@@ -17,7 +17,7 @@ import {
   detectLanguageHeuristic,
   selectPreferredVoice,
 } from '../core/language-detector';
-import { segmentForStreaming, segmentSentences } from '../core/segmenter';
+import { createProceduralTextStream } from '../core/procedural-stream';
 import { TTSManager } from '../core/tts-manager';
 import { getExtensionStorage, isHostBlocked, onSettingsChanged } from '../shared/storage';
 import {
@@ -479,7 +479,7 @@ export class EchoSelectContentApp {
     const token = ++this.speakSeq;
 
     const fallbackLang = document.documentElement.lang || navigator.language || 'en';
-    const lang = await detectLanguage(text, {
+    const lang = await detectLanguage(text.slice(0, 500), {
       remoteDetect: detectViaBackground,
       fallbackLang,
       preferFastLocal: true,
@@ -487,30 +487,28 @@ export class EchoSelectContentApp {
 
     if (token !== this.speakSeq || !this.ttsManager || !this.currentEngine) return;
 
-    const cleaned = cleanText(text, {
+    const stream = createProceduralTextStream(text, {
       lang,
       omitCodeBlocks: this.settings.omitCodeBlocks,
       stripUrls: this.settings.stripUrls,
+      maxChunkChars: this.currentEngine.capabilities.maxChunkChars,
+      firstChunkMaxChars: this.currentEngine.capabilities.streamingFirstChunkChars,
     });
-    const firstChunkMax = this.currentEngine.capabilities.streamingFirstChunkChars;
-    const sentences = firstChunkMax
-      ? segmentForStreaming(cleaned, lang, {
-          firstChunkMaxChars: firstChunkMax,
-          maxChunkChars: this.currentEngine.capabilities.maxChunkChars,
-        })
-      : segmentSentences(cleaned, lang, this.currentEngine.capabilities.maxChunkChars);
-    if (sentences.length === 0) return;
+    const initialChunks = stream.nextBatch();
+    if (initialChunks.length === 0) return;
 
     const voices = await this.currentEngine.getVoices();
     if (token !== this.speakSeq || !this.ttsManager || !this.currentEngine) return;
 
     const preferred = selectPreferredVoice(voices, lang, this.settings.voicePreferences);
 
-    const playPromise = this.ttsManager.play(sentences, {
+    const playPromise = this.ttsManager.play(initialChunks, {
       lang,
       voiceId: preferred?.id,
       rate: this.settings.defaultRate,
       source,
+      pullMoreChunks: () => stream.nextBatch(),
+      hasMoreChunks: () => stream.hasMore(),
     });
 
     if (focusPlayer) {

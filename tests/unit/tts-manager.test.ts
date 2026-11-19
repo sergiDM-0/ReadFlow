@@ -121,6 +121,40 @@ describe('TTSManager', () => {
     expect(calls[1]?.text).toBe('Stream 2.');
   });
 
+  it('pulls procedural chunk batches on demand as playback approaches buffer end', async () => {
+    const { engine, calls } = createFakeEngine();
+    const manager = new TTSManager(engine);
+
+    const batches = [['Batch2-A.', 'Batch2-B.'], ['Batch3-End.']];
+    let batchIdx = 0;
+
+    void manager.play(['Batch1-A.'], {
+      lang: 'es',
+      rate: 1,
+      source: 'selection',
+      pullMoreChunks: () => batches[batchIdx++] ?? [],
+      hasMoreChunks: () => batchIdx < batches.length,
+    });
+    await Promise.resolve();
+
+    // Buffer pulled ahead smoothly to keep lookahead full
+    expect(manager.getState().items.length).toBeGreaterThanOrEqual(3);
+    expect(calls[0]?.text).toBe('Batch1-A.');
+
+    // Advance through all procedurally loaded items until idle
+    while (manager.getState().status !== 'idle') {
+      calls.at(-1)?.deferred.resolve();
+      await new Promise((r) => setTimeout(r, 0));
+    }
+
+    expect(calls.map((c) => c.text)).toEqual([
+      'Batch1-A.',
+      'Batch2-A.',
+      'Batch2-B.',
+      'Batch3-End.',
+    ]);
+  });
+
   it('transitions to error state cleanly when engine fails', async () => {
     const { engine, calls } = createFakeEngine();
     const manager = new TTSManager(engine);

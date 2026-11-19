@@ -273,13 +273,14 @@ describe('EchoSelectContentApp integration', () => {
       },
     });
 
-    // Verify fast-start streaming chunking sent the short lead clause first to NEURAL_TTS_SYNTHESIZE
+    // Verify fast-start streaming chunking sent a short opening micro-chunk (<= 48 chars) first
     const synthCall = vi
       .mocked(browser.runtime.sendMessage)
       .mock.calls.find((c) => (c[0] as { type?: string })?.type === 'NEURAL_TTS_SYNTHESIZE');
     expect(synthCall).toBeDefined();
     const sentText = (synthCall?.[0] as { payload: { text: string } }).payload.text;
     expect(sentText).toBe('Cuando seleccionas una oración larga para leer,');
+    expect(sentText.length).toBeLessThanOrEqual(48);
 
     const stateRes = (await messageListener!({ type: 'GET_TAB_PLAYBACK_STATE' })) as {
       ok: boolean;

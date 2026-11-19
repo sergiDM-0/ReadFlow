@@ -5,6 +5,21 @@ All notable changes to **EchoSelect TTS** will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-11-19
+
+### Added
+
+- **Procedural incremental chunk streaming (`createProceduralTextStream`)** for large texts: processes and speaks huge selections on-demand in ~640-char batches with a progressive opening ramp (`48 → 95 → 140 → 175` chars) so time-to-first-audio stays `O(1)` regardless of document size, showing `1/4+` progress in the MiniPlayer while more batches remain.
+- **Universal Auto-Read on Selection (`autoReadSelection`)**: clean SVG Auto-Read ON/OFF toggle pill available on all pages and synced with the popup; enabling it immediately reads any text you select without clicking the floating button.
+
+### Performance
+
+- **Faster native neural speech**: applies brisker natural cadence (`BASE_CADENCE_SCALE = 0.88`) and scales Piper ONNX `length_scale` natively by playback rate (faster synthesis with natural pitch, no chipmunk distortion), trims dead leading/trailing Piper silence (`trimPcmSilence`), and cancels obsolete queued prefetches (`NEURAL_TTS_CANCEL`) in 0 ms when switching selections.
+
+### Fixed
+
+- Fixed duplicated Auto-Read icon glitch by replacing OS-dependent emojis with a single inline SVG icon + ON/OFF badge and cleaning up orphaned `<echo-select-ui>` Shadow DOM hosts on extension reload.
+
 ## [1.1.1] - 2026-11-19
 
 ### Performance

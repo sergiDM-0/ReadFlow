@@ -117,6 +117,7 @@ export type SentenceQueueState =
       readonly detectedLang: string;
       readonly source: QueueSource;
       readonly loadingMessage?: string;
+      readonly hasMoreChunks?: boolean;
       readonly error: null;
     }
   | {

@@ -153,8 +153,9 @@ export class MiniPlayer {
     this.prevBtn.disabled = isNavDisabled;
     this.nextBtn.disabled = isNavDisabled;
 
+    const suffix = state.status !== 'error' && state.hasMoreChunks ? '+' : '';
     const progress =
-      state.items.length > 0 ? `${state.currentIndex + 1}/${state.items.length}` : '';
+      state.items.length > 0 ? `${state.currentIndex + 1}/${state.items.length}${suffix}` : '';
 
     if (state.status === 'playing') {
       this.statusLabel.textContent = progress ? `Leyendo ${progress}` : 'Leyendo';
