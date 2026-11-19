@@ -26,7 +26,8 @@ describe('cleaner', () => {
   });
 
   it('cleans noisy markdown syntax and repetitive emojis', () => {
-    const raw = '### **Hello** __world__ with `inline` 🔥🔥🔥🔥🔥 and [a link](https://test.dev/a/b/c).';
+    const raw =
+      '### **Hello** __world__ with `inline` 🔥🔥🔥🔥🔥 and [a link](https://test.dev/a/b/c).';
     const cleaned = cleanText(raw);
     expect(cleaned).toBe('Hello world with inline and a link.');
   });
@@ -55,9 +56,21 @@ describe('cleaner', () => {
     expect(text).not.toContain('function secret');
   });
 
-  it('preserves code text when omitCodeBlocks is false', () => {
-    const raw = 'Code:\n```\nlet a = 1;\n```';
-    const cleaned = cleanText(raw, { omitCodeBlocks: false });
+  it('preserves code text when omitCodeBlocks is false and keeps URLs when stripUrls is false', () => {
+    const raw = 'Code:\n```\nlet a = 1;\n```\nhttps://example.com/docs';
+    const cleaned = cleanText(raw, { omitCodeBlocks: false, stripUrls: false });
     expect(cleaned).toContain('let a = 1;');
+    expect(cleaned).toContain('https://example.com/docs');
+
+    const el = document.createElement('div');
+    const script = document.createElement('script');
+    script.textContent = 'alert(1)';
+    const hidden = document.createElement('span');
+    hidden.setAttribute('aria-hidden', 'true');
+    hidden.textContent = 'hidden';
+    const visible = document.createElement('span');
+    visible.textContent = 'Visible text.';
+    el.append(script, hidden, visible);
+    expect(extractCleanTextFromElement(el)).toBe('Visible text.');
   });
 });

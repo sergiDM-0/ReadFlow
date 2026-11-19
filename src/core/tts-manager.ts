@@ -112,7 +112,12 @@ export class TTSManager {
     if (this.state.status !== 'playing') {
       return;
     }
-    this.engine.pause();
+    if (this.engine.capabilities.supportsPauseResume) {
+      this.engine.pause();
+    } else {
+      this.cancelCurrentUtterance();
+      this.engine.stop();
+    }
     this.setState({ ...this.state, status: 'paused' });
   }
 
@@ -120,8 +125,36 @@ export class TTSManager {
     if (this.state.status !== 'paused') {
       return;
     }
-    this.engine.resume();
-    this.setState({ ...this.state, status: 'playing' });
+    if (this.engine.capabilities.supportsPauseResume) {
+      this.engine.resume();
+      this.setState({ ...this.state, status: 'playing' });
+    } else {
+      const index = this.state.currentIndex;
+      this.setState({ ...this.state, status: 'playing' });
+      void this.speakAtIndex(index);
+    }
+  }
+
+  public retry(): void {
+    if (this.state.status !== 'error') {
+      return;
+    }
+    const index = Math.max(0, this.state.currentIndex);
+    if (!this.state.items[index]) {
+      this.stop();
+      return;
+    }
+    this.cancelCurrentUtterance();
+    this.setState({
+      status: 'playing',
+      items: this.state.items,
+      currentIndex: index,
+      rate: this.state.rate,
+      detectedLang: this.state.detectedLang ?? 'en',
+      source: this.state.source ?? 'selection',
+      error: null,
+    });
+    void this.speakAtIndex(index);
   }
 
   public togglePauseResume(): void {
@@ -129,6 +162,8 @@ export class TTSManager {
       this.pause();
     } else if (this.state.status === 'paused') {
       this.resume();
+    } else if (this.state.status === 'error') {
+      this.retry();
     }
   }
 
@@ -153,11 +188,7 @@ export class TTSManager {
   }
 
   public setRate(rate: PlaybackRate): void {
-    if (this.state.status === 'idle') {
-      this.setState({ ...this.state, rate });
-      return;
-    }
-    if (this.state.status === 'error') {
+    if (this.state.status === 'idle' || this.state.status === 'error') {
       this.setState({ ...this.state, rate });
       return;
     }
@@ -167,7 +198,11 @@ export class TTSManager {
     this.setState({ ...this.state, rate });
 
     if (wasPlaying) {
-      this.jumpTo(currentIndex);
+      if (this.engine.capabilities.supportsLiveRateChange && this.engine.setPlaybackRate) {
+        this.engine.setPlaybackRate(rate);
+      } else {
+        this.jumpTo(currentIndex);
+      }
     }
   }
 
@@ -225,15 +260,54 @@ export class TTSManager {
     const controller = new AbortController();
     this.activeController = controller;
 
+    // Pre-synthesize the upcoming sentence while current sentence is preparing/playing
+    const upcoming = this.state.items[index + 1];
+    if (upcoming && this.engine.prefetch) {
+      this.engine.prefetch(upcoming.text, {
+        lang: upcoming.lang,
+        voiceId: this.activeVoiceId,
+        rate: this.state.rate,
+      });
+    }
+
     try {
       await this.engine.speak(item.text, {
         lang: item.lang,
         voiceId: this.activeVoiceId,
         rate: this.state.rate,
         signal: controller.signal,
+        onProgress: (loadingMessage) => {
+          if (
+            token !== this.playbackToken ||
+            this.state.status === 'idle' ||
+            this.state.status === 'paused'
+          ) {
+            return;
+          }
+          if (this.state.status === 'playing' || this.state.status === 'loading') {
+            this.setState({
+              ...this.state,
+              status: 'loading',
+              loadingMessage,
+            });
+          }
+        },
+        onPlaying: () => {
+          if (token !== this.playbackToken || this.state.status !== 'loading') {
+            return;
+          }
+          this.setState({
+            ...this.state,
+            status: 'playing',
+            loadingMessage: undefined,
+          });
+        },
       });
 
-      if (token !== this.playbackToken || this.state.status !== 'playing') {
+      if (
+        token !== this.playbackToken ||
+        (this.state.status !== 'playing' && this.state.status !== 'loading')
+      ) {
         return;
       }
 
@@ -241,6 +315,8 @@ export class TTSManager {
       if (nextIndex < this.state.items.length) {
         this.setState({
           ...this.state,
+          status: 'playing',
+          loadingMessage: undefined,
           currentIndex: nextIndex,
         });
         await this.speakAtIndex(nextIndex);

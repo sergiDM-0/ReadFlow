@@ -77,7 +77,12 @@ function collectElementText(
 
   const el = node as Element;
   const tag = el.tagName.toLowerCase();
-  if (tag === 'script' || tag === 'style' || tag === 'noscript' || el.getAttribute('aria-hidden') === 'true') {
+  if (
+    tag === 'script' ||
+    tag === 'style' ||
+    tag === 'noscript' ||
+    el.getAttribute('aria-hidden') === 'true'
+  ) {
     return;
   }
 

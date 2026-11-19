@@ -12,8 +12,39 @@ export interface DetectLanguageOptions {
 }
 
 const LANGUAGE_STOPWORDS: Readonly<Record<string, readonly string[]>> = {
-  es: ['el', 'la', 'los', 'las', 'de', 'que', 'en', 'para', 'con', 'una', 'por', 'este', 'esta', 'como', 'voz', 'texto'],
-  en: ['the', 'and', 'for', 'that', 'this', 'with', 'from', 'have', 'are', 'reads', 'text', 'selected', 'browser'],
+  es: [
+    'el',
+    'la',
+    'los',
+    'las',
+    'de',
+    'que',
+    'en',
+    'para',
+    'con',
+    'una',
+    'por',
+    'este',
+    'esta',
+    'como',
+    'voz',
+    'texto',
+  ],
+  en: [
+    'the',
+    'and',
+    'for',
+    'that',
+    'this',
+    'with',
+    'from',
+    'have',
+    'are',
+    'reads',
+    'text',
+    'selected',
+    'browser',
+  ],
   pt: ['que', 'não', 'para', 'com', 'uma', 'você', 'isso', 'texto', 'como'],
   fr: ['les', 'des', 'une', 'pour', 'dans', 'avec', 'cette', 'vous', 'est'],
   de: ['der', 'die', 'das', 'und', 'für', 'mit', 'nicht', 'eine', 'ist'],
@@ -75,7 +106,7 @@ export async function detectLanguage(
   text: string,
   options: DetectLanguageOptions = {}
 ): Promise<string> {
-  const fallbackLang = options.fallbackLang ?? 'en';
+  const fallbackLang = normalizeLangCode(options.fallbackLang ?? 'en') || 'en';
   const sample = text.trim().slice(0, 600);
   if (!sample) {
     return fallbackLang;
@@ -85,7 +116,7 @@ export async function detectLanguage(
     try {
       const remote = await options.remoteDetect(sample);
       if (remote && remote.lang && remote.isReliable && remote.confidence >= 50) {
-        return remote.lang;
+        return normalizeLangCode(remote.lang) || fallbackLang;
       }
     } catch {
       // Fall back to local heuristic when background detection is unavailable.
@@ -93,6 +124,38 @@ export async function detectLanguage(
   }
 
   return detectLanguageHeuristic(sample, fallbackLang);
+}
+
+const ROBOTIC_VOICE_RE = /espeak|festival|mbrola|speech-dispatcher|demonic|whisper|\+/i;
+const NATURAL_VOICE_RE =
+  /natural|neural|online|enhanced|premium|wavenet|studio|siri|claude|dalia|elvira|helena|sabina|paulina|monica|samantha|ava|aria|jenny|hfc|lessac|sharvard|davefx|ald/i;
+const QUALITY_VENDOR_RE = /google|microsoft|apple/i;
+
+function scoreVoiceQuality(voice: VoiceInfo, normalizedLang: string, primaryLang: string): number {
+  const voiceLang = normalizeLangCode(voice.lang);
+  const voicePrimary = getPrimaryLang(voice.lang);
+  let score = 0;
+
+  if (voiceLang === normalizedLang) {
+    score += 40;
+  } else if (voicePrimary === primaryLang) {
+    score += 30;
+  } else {
+    return -1000;
+  }
+
+  if (voice.engine === 'piper-neural') {
+    score += 60;
+    if (voice.isDefault) score += 10;
+  }
+
+  const label = `${voice.name} ${voice.id}`;
+  if (NATURAL_VOICE_RE.test(label)) score += 35;
+  if (QUALITY_VENDOR_RE.test(label)) score += 15;
+  if (ROBOTIC_VOICE_RE.test(label)) score -= 50;
+  if (voice.isLocal && !ROBOTIC_VOICE_RE.test(label)) score += 5;
+
+  return score;
 }
 
 export function selectPreferredVoice(
@@ -115,14 +178,16 @@ export function selectPreferredVoice(
     }
   }
 
-  const exactLocal = voices.find((v) => v.isLocal && normalizeLangCode(v.lang) === normalizedLang);
-  if (exactLocal) return exactLocal;
+  let bestVoice: VoiceInfo | undefined;
+  let bestScore = -Infinity;
 
-  const primaryLocal = voices.find((v) => v.isLocal && getPrimaryLang(v.lang) === primaryLang);
-  if (primaryLocal) return primaryLocal;
+  for (const voice of voices) {
+    const score = scoreVoiceQuality(voice, normalizedLang, primaryLang);
+    if (score > bestScore && score > -500) {
+      bestScore = score;
+      bestVoice = voice;
+    }
+  }
 
-  const primaryAny = voices.find((v) => getPrimaryLang(v.lang) === primaryLang);
-  if (primaryAny) return primaryAny;
-
-  return voices.find((v) => v.isDefault) ?? voices[0];
+  return bestVoice ?? voices.find((v) => v.isDefault) ?? voices[0];
 }

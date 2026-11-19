@@ -7,7 +7,9 @@ import { TTSError } from '../../src/shared/types';
 describe('assertLocalhostEndpoint', () => {
   it('allows valid loopback HTTP URLs', () => {
     expect(assertLocalhostEndpoint('http://localhost:5000/tts').hostname).toBe('localhost');
-    expect(assertLocalhostEndpoint('http://127.0.0.1:8880/v1/audio/speech').hostname).toBe('127.0.0.1');
+    expect(assertLocalhostEndpoint('http://127.0.0.1:8880/v1/audio/speech').hostname).toBe(
+      '127.0.0.1'
+    );
     expect(assertLocalhostEndpoint('http://[::1]:5000/tts').hostname).toBe('[::1]');
   });
 
@@ -106,25 +108,75 @@ describe('WebSpeechEngine', () => {
     await expect(promise).rejects.toMatchObject({ code: 'ABORTED' });
     expect(mockSynth.cancel).toHaveBeenCalled();
   });
+
+  it('supports pause, resume, stop, onerror, and unavailable speechSynthesis', async () => {
+    const engine = new WebSpeechEngine(
+      mockSynth as unknown as SpeechSynthesis,
+      MockUtterance as unknown as typeof SpeechSynthesisUtterance
+    );
+    const promise = engine.speak('Error test', { lang: 'en', rate: 1 });
+    engine.pause();
+    expect(mockSynth.pause).toHaveBeenCalledOnce();
+    engine.resume();
+    expect(mockSynth.resume).toHaveBeenCalledOnce();
+
+    mockUtterances[0]?.onerror?.({ error: 'synthesis-failed' });
+    await expect(promise).rejects.toMatchObject({ code: 'SYNTHESIS_FAILED' });
+
+    engine.stop();
+    expect(mockSynth.cancel).toHaveBeenCalled();
+
+    const unavailable = new WebSpeechEngine(null, null, false);
+    expect(await unavailable.isAvailable()).toBe(false);
+    expect(unavailable.capabilities.supportsPauseResume).toBe(true);
+    expect(await unavailable.getVoices()).toEqual([]);
+    await expect(unavailable.speak('x', { lang: 'en', rate: 1 })).rejects.toMatchObject({
+      code: 'ENGINE_UNAVAILABLE',
+    });
+
+    // Linux speech-dispatcher marks native pause unsupported so TTSManager cancels cleanly
+    const linuxEngine = new WebSpeechEngine(
+      mockSynth as unknown as SpeechSynthesis,
+      MockUtterance as unknown as typeof SpeechSynthesisUtterance,
+      true
+    );
+    expect(linuxEngine.capabilities.supportsPauseResume).toBe(false);
+  });
 });
 
 describe('LocalHttpEngine', () => {
-  it('validates endpoint and plays audio returned by transport', async () => {
+  it('validates endpoint, lists voices, and plays audio returned by transport', async () => {
     const transport = vi.fn().mockResolvedValue({
       mimeType: 'audio/wav',
       audioBase64: 'UklGRg==',
     });
     const playAudio = vi.fn().mockResolvedValue(undefined);
     const engine = new LocalHttpEngine(
-      { endpointUrl: 'http://127.0.0.1:5000/tts', protocol: 'piper', timeoutMs: 5000 },
+      { endpointUrl: 'http://127.0.0.1:5000/tts', protocol: 'kokoro-openai', timeoutMs: 5000 },
       transport,
       playAudio
     );
 
     expect(await engine.isAvailable()).toBe(true);
+    const voices = await engine.getVoices();
+    expect(voices[0]?.name).toContain('Kokoro');
+
     await engine.speak('Hello local', { lang: 'en', rate: 1.5 });
     expect(transport).toHaveBeenCalledOnce();
     expect(playAudio).toHaveBeenCalledWith('audio/wav', 'UklGRg==', undefined);
+
+    engine.pause();
+    engine.resume();
+    engine.stop();
+    engine.dispose();
+
+    const aborted = new AbortController();
+    aborted.abort();
+    await expect(
+      engine.speak('Skip', { lang: 'en', rate: 1, signal: aborted.signal })
+    ).rejects.toMatchObject({
+      code: 'ABORTED',
+    });
   });
 
   it('rejects remote non-localhost endpoint before invoking transport', async () => {

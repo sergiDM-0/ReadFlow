@@ -8,12 +8,16 @@ describe('segmentSentences', () => {
   });
 
   it('does not split common abbreviations or semantic versions', () => {
-    const result = segmentSentences('El Dr. García y el Sr. Pérez usan v1.2.3, etc. en producción.');
+    const result = segmentSentences(
+      'El Dr. García y el Sr. Pérez usan v1.2.3, etc. en producción.'
+    );
     expect(result).toEqual(['El Dr. García y el Sr. Pérez usan v1.2.3, etc. en producción.']);
   });
 
   it('handles English abbreviations e.g. and i.e. without premature splits', () => {
-    const result = segmentSentences('Use modern APIs, e.g. Web Speech API, i.e. local voices. Next sentence.');
+    const result = segmentSentences(
+      'Use modern APIs, e.g. Web Speech API, i.e. local voices. Next sentence.'
+    );
     expect(result).toEqual([
       'Use modern APIs, e.g. Web Speech API, i.e. local voices.',
       'Next sentence.',
@@ -42,5 +46,18 @@ describe('segmentSentences', () => {
   it('splits by newlines when sentences lack terminal punctuation', () => {
     const result = segmentSentences('First heading\nSecond heading\nThird line');
     expect(result).toEqual(['First heading', 'Second heading', 'Third line']);
+  });
+
+  it('falls back to word-boundary splitting for long punctuation-free text', () => {
+    const words = Array.from({ length: 40 }, (_, i) => `palabra${i}`).join(' ');
+    const chunks = segmentSentences(words, 'es', 80);
+    expect(chunks.length).toBeGreaterThan(2);
+    for (const c of chunks) {
+      expect(c.length).toBeLessThanOrEqual(80);
+    }
+  });
+
+  it('handles malformed locale strings gracefully via regex fallback', () => {
+    expect(segmentSentences('First. Second!', 'invalid_locale_!!!')).toEqual(['First.', 'Second!']);
   });
 });

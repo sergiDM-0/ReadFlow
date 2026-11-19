@@ -16,7 +16,10 @@ export function assertLocalhostEndpoint(rawUrl: string): URL {
   }
 
   if (parsed.username !== '' || parsed.password !== '') {
-    throw new TTSError('INVALID_ENDPOINT', 'Credentials are not permitted in the local endpoint URL.');
+    throw new TTSError(
+      'INVALID_ENDPOINT',
+      'Credentials are not permitted in the local endpoint URL.'
+    );
   }
 
   if (!ALLOWED_LOOPBACK_HOSTS.has(parsed.hostname.toLowerCase())) {

@@ -4,13 +4,18 @@ import type { TTSEngineCapabilities, TTSEngineInterface } from './engine.interfa
 const VOICES_TIMEOUT_MS = 1_000;
 const KEEPALIVE_INTERVAL_MS = 10_000;
 
+function detectLinuxPlatform(): boolean {
+  if (typeof navigator === 'undefined') {
+    return false;
+  }
+  const ua = navigator.userAgent ?? '';
+  const platform = navigator.platform ?? '';
+  return /linux/i.test(ua) || /linux/i.test(platform);
+}
+
 export class WebSpeechEngine implements TTSEngineInterface {
   public readonly id = 'web-speech' as const;
-  public readonly capabilities: TTSEngineCapabilities = {
-    supportsPauseResume: true,
-    supportsLiveRateChange: false,
-    maxChunkChars: 220,
-  };
+  public readonly capabilities: TTSEngineCapabilities;
 
   private readonly synth: SpeechSynthesis | null;
   private readonly UtteranceCtor: typeof SpeechSynthesisUtterance | null;
@@ -21,11 +26,19 @@ export class WebSpeechEngine implements TTSEngineInterface {
     synth: SpeechSynthesis | null = typeof window !== 'undefined' && 'speechSynthesis' in window
       ? window.speechSynthesis
       : null,
-    UtteranceCtor: typeof SpeechSynthesisUtterance | null =
-      typeof SpeechSynthesisUtterance !== 'undefined' ? SpeechSynthesisUtterance : null
+    UtteranceCtor: typeof SpeechSynthesisUtterance | null = typeof SpeechSynthesisUtterance !==
+    'undefined'
+      ? SpeechSynthesisUtterance
+      : null,
+    isLinux: boolean = detectLinuxPlatform()
   ) {
     this.synth = synth;
     this.UtteranceCtor = UtteranceCtor;
+    this.capabilities = {
+      supportsPauseResume: !isLinux,
+      supportsLiveRateChange: false,
+      maxChunkChars: 220,
+    };
   }
 
   public async isAvailable(): Promise<boolean> {
@@ -114,7 +127,10 @@ export class WebSpeechEngine implements TTSEngineInterface {
 
       utterance.onend = () => finish();
       utterance.onerror = (event) => {
-        const errCode = event.error === 'canceled' || event.error === 'interrupted' ? 'ABORTED' : 'SYNTHESIS_FAILED';
+        const errCode =
+          event.error === 'canceled' || event.error === 'interrupted'
+            ? 'ABORTED'
+            : 'SYNTHESIS_FAILED';
         finish(new TTSError(errCode, `Web Speech synthesis error: ${event.error || 'unknown'}`));
       };
 

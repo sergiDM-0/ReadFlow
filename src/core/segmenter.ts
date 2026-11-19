@@ -19,16 +19,21 @@ function unmaskProtectedDots(text: string): string {
 
 function splitBySentenceBoundary(maskedLine: string, lang: string): string[] {
   if (typeof Intl !== 'undefined' && typeof Intl.Segmenter === 'function') {
-    const segmenter = new Intl.Segmenter(lang, { granularity: 'sentence' });
-    const pieces: string[] = [];
-    for (const seg of segmenter.segment(maskedLine)) {
-      const trimmed = seg.segment.trim();
-      if (trimmed) {
-        pieces.push(trimmed);
+    try {
+      const normalizedLang = lang.trim().replace(/_/g, '-') || 'en';
+      const segmenter = new Intl.Segmenter(normalizedLang, { granularity: 'sentence' });
+      const pieces: string[] = [];
+      for (const seg of segmenter.segment(maskedLine)) {
+        const trimmed = seg.segment.trim();
+        if (trimmed) {
+          pieces.push(trimmed);
+        }
       }
-    }
-    if (pieces.length > 0) {
-      return pieces;
+      if (pieces.length > 0) {
+        return pieces;
+      }
+    } catch {
+      // Fall back to punctuation regex when locale string is invalid.
     }
   }
 

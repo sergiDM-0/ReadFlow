@@ -14,7 +14,11 @@ function createDeferred() {
 }
 
 function createFakeEngine() {
-  const calls: Array<{ text: string; options: EngineOptions; deferred: ReturnType<typeof createDeferred> }> = [];
+  const calls: Array<{
+    text: string;
+    options: EngineOptions;
+    deferred: ReturnType<typeof createDeferred>;
+  }> = [];
   const engine: TTSEngineInterface = {
     id: 'web-speech',
     capabilities: { supportsPauseResume: true, supportsLiveRateChange: false, maxChunkChars: 240 },
@@ -67,7 +71,11 @@ describe('TTSManager', () => {
     const { engine, calls } = createFakeEngine();
     const manager = new TTSManager(engine);
 
-    void manager.play(['First.', 'Second.', 'Third.'], { lang: 'en', rate: 1, source: 'selection' });
+    void manager.play(['First.', 'Second.', 'Third.'], {
+      lang: 'en',
+      rate: 1,
+      source: 'selection',
+    });
     await Promise.resolve();
 
     manager.pause();
@@ -128,5 +136,73 @@ describe('TTSManager', () => {
     if (state.status === 'error') {
       expect(state.error.code).toBe('SYNTHESIS_FAILED');
     }
+
+    // Retry from error state resumes playback at failed sentence
+    manager.togglePauseResume();
+    await Promise.resolve();
+    expect(manager.getState().status).toBe('playing');
+    expect(calls).toHaveLength(2);
+
+    // Pause/resume on non-pausable engine cancels and restarts cleanly
+    const nonPausableEngine: TTSEngineInterface = {
+      ...engine,
+      capabilities: {
+        supportsPauseResume: false,
+        supportsLiveRateChange: false,
+        maxChunkChars: 420,
+      },
+    };
+    const localMgr = new TTSManager(nonPausableEngine);
+    void localMgr.play(['Chunk one.', 'Chunk two.'], { lang: 'en', rate: 1, source: 'selection' });
+    await Promise.resolve();
+    localMgr.pause();
+    expect(localMgr.getState().status).toBe('paused');
+    localMgr.resume();
+    await Promise.resolve();
+    expect(localMgr.getState().status).toBe('playing');
+    localMgr.stop();
+
+    // Live rate change + prefetch + loading->playing transitions (PiperNeuralEngine path)
+    const setPlaybackRate = vi.fn();
+    const prefetch = vi.fn();
+    const liveDeferred = createDeferred();
+    const liveEngine: TTSEngineInterface = {
+      ...engine,
+      capabilities: { supportsPauseResume: true, supportsLiveRateChange: true, maxChunkChars: 360 },
+      setPlaybackRate,
+      prefetch,
+      speak: vi.fn((_text, opts) => {
+        opts.onProgress?.('Preparando voz...');
+        opts.onPlaying?.();
+        return liveDeferred.promise;
+      }),
+    };
+    const liveMgr = new TTSManager(liveEngine);
+    void liveMgr.play(['Uno.', 'Dos.'], { lang: 'es', rate: 1, source: 'selection' });
+    await Promise.resolve();
+    expect(prefetch).toHaveBeenCalledOnce();
+    liveMgr.setRate(1.5);
+    expect(setPlaybackRate).toHaveBeenCalledWith(1.5);
+    liveDeferred.resolve();
+    liveMgr.stop();
+
+    // Edge cases: empty play, idle/error setRate, togglePauseResume, next at end, dispose
+    await manager.play(['   '], { lang: 'en', rate: 1, source: 'selection' });
+    manager.setRate(2);
+    expect(manager.getState().rate).toBe(2);
+
+    void manager.play(['Only one.'], { lang: 'en', rate: 1.25, source: 'selection' });
+    await Promise.resolve();
+    manager.togglePauseResume();
+    expect(manager.getState().status).toBe('paused');
+    manager.togglePauseResume();
+    expect(manager.getState().status).toBe('playing');
+    manager.next();
+    expect(manager.getState().status).toBe('idle');
+
+    manager.setRate(0.75);
+    expect(manager.getState().rate).toBe(0.75);
+    manager.dispose();
+    expect(engine.dispose).toHaveBeenCalledOnce();
   });
 });
