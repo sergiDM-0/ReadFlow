@@ -99,15 +99,73 @@ describe('PiperRuntime', () => {
     expect(first.audioBase64.length).toBeGreaterThan(10);
     expect(createSessionMock).toHaveBeenCalledTimes(1);
 
-    // Same voice reuses existing ONNX session
+    // Same voice reuses existing ONNX session AND reused phonemizer WASM instance
     const second = await runtime.synthesize('Segunda frase', 'es_MX-claude-high');
     expect(second.mimeType).toBe('audio/wav');
     expect(createSessionMock).toHaveBeenCalledTimes(1);
+    expect(phonemizeFactoryMock).toHaveBeenCalledTimes(1);
+    expect(callMainMock).toHaveBeenCalledTimes(2);
 
-    // Switching voice loads new session and releases previous one
+    // Repeating an identical phrase hits in-memory LRU audio cache with zero ONNX inference
+    const repeated = await runtime.synthesize('Hola mundo', 'es_MX-claude-high');
+    expect(repeated.audioBase64).toBe(first.audioBase64);
+    expect(runMock).toHaveBeenCalledTimes(2);
+
+    // Switching voice loads new session and releases previous one, still reusing phonemizer WASM
     await runtime.synthesize('Tercera frase', 'es_ES-sharvard-medium');
     expect(createSessionMock).toHaveBeenCalledTimes(2);
     expect(releaseMock).toHaveBeenCalledTimes(1);
+    expect(phonemizeFactoryMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('pre-warms ONNX session and phonemizer in parallel and deduplicates concurrent warmups', async () => {
+    const runtime = new PiperRuntime({
+      ortWasmDir: 'ext://wasm/',
+      piperWasm: 'ext://wasm/piper_phonemize.wasm',
+      piperData: 'ext://wasm/piper_phonemize.data',
+    });
+
+    await Promise.all([runtime.warmup('es_MX-claude-high'), runtime.warmup('es_MX-claude-high')]);
+    expect(createSessionMock).toHaveBeenCalledTimes(1);
+    expect(phonemizeFactoryMock).toHaveBeenCalledTimes(1);
+
+    // Subsequent warmup for already-loaded voice is an instant no-op
+    await runtime.warmup('es_MX-claude-high');
+    expect(createSessionMock).toHaveBeenCalledTimes(1);
+
+    // Synthesizing after warmup reuses warm session and warm phonemizer
+    await runtime.synthesize('Ya estaba caliente', 'es_MX-claude-high');
+    expect(createSessionMock).toHaveBeenCalledTimes(1);
+    expect(phonemizeFactoryMock).toHaveBeenCalledTimes(1);
+    expect(runMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('recovers cleanly by recreating phonemizer if callMain throws', async () => {
+    let failOnce = true;
+    phonemizeFactoryMock.mockImplementation(
+      async (opts: { print: (line: string) => void; locateFile: (f: string) => string }) => ({
+        callMain: () => {
+          if (failOnce) {
+            failOnce = false;
+            throw new Error('Emscripten trap');
+          }
+          opts.print(JSON.stringify({ phoneme_ids: [1, 14, 22, 2] }));
+        },
+      })
+    );
+
+    const runtime = new PiperRuntime({
+      ortWasmDir: 'ext://wasm/',
+      piperWasm: 'ext://wasm/piper_phonemize.wasm',
+      piperData: 'ext://wasm/piper_phonemize.data',
+    });
+
+    await expect(runtime.synthesize('Falla una vez', 'es_MX-claude-high')).rejects.toThrow(
+      /Emscripten trap/
+    );
+    const recovered = await runtime.synthesize('Recuperado', 'es_MX-claude-high');
+    expect(recovered.mimeType).toBe('audio/wav');
+    expect(phonemizeFactoryMock).toHaveBeenCalledTimes(2);
   });
 
   it('rejects empty text cleanly', async () => {

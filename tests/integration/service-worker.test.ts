@@ -459,5 +459,55 @@ describe('background message handler', () => {
         )
       ).ok
     ).toBe(false);
+
+    // NEURAL_TTS_WARMUP resolves default voice and enforces settings/domain rules
+    const warmupNeural = vi.fn().mockResolvedValue(undefined);
+    const warmupOk = await handleRuntimeMessage(
+      { type: 'NEURAL_TTS_WARMUP', payload: { lang: 'es-CO' } },
+      { id: 'ext', tab: { url: 'https://example.com' } },
+      { runtimeId: 'ext', warmupNeural }
+    );
+    expect(warmupOk).toEqual({ ok: true, data: { voiceId: 'es_MX-claude-high' } });
+    expect(warmupNeural).toHaveBeenCalledWith('es_MX-claude-high');
+
+    expect(
+      (
+        await handleRuntimeMessage(
+          { type: 'NEURAL_TTS_WARMUP', payload: null },
+          { id: 'ext' },
+          { runtimeId: 'ext', warmupNeural }
+        )
+      ).ok
+    ).toBe(false);
+
+    expect(
+      (
+        await handleRuntimeMessage(
+          { type: 'NEURAL_TTS_WARMUP', payload: { lang: 'es' } },
+          { id: 'ext', tab: { url: 'https://blocked.example.com' } },
+          {
+            runtimeId: 'ext',
+            warmupNeural,
+            getSettings: async () => ({
+              schemaVersion: 1,
+              enabled: true,
+              blockedDomains: ['blocked.example.com'],
+              engine: 'piper-neural',
+              defaultRate: 1,
+              voicePreferences: {},
+              theme: 'auto',
+              omitCodeBlocks: true,
+              stripUrls: true,
+              geminiAutoRead: false,
+              localHttp: {
+                endpointUrl: 'http://127.0.0.1:5000/tts',
+                protocol: 'piper',
+                timeoutMs: 5000,
+              },
+            }),
+          }
+        )
+      ).ok
+    ).toBe(false);
   });
 });

@@ -14,7 +14,22 @@ browser.runtime.onMessage.addListener(
       return undefined;
     }
     const message = rawMessage as ExtensionMessage | undefined;
-    if (!message || message.type !== 'OFFSCREEN_PIPER_SYNTHESIZE') {
+    if (!message) {
+      return undefined;
+    }
+
+    if (message.type === 'OFFSCREEN_PIPER_WARMUP') {
+      return runtime
+        .warmup(message.payload.voiceId)
+        .then(() => ({ ok: true as const, data: { warmed: true as const } }))
+        .catch((err: unknown) => ({
+          ok: false as const,
+          code: 'SYNTHESIS_FAILED',
+          message: err instanceof Error ? err.message : 'Neural warmup failed.',
+        }));
+    }
+
+    if (message.type !== 'OFFSCREEN_PIPER_SYNTHESIZE') {
       return undefined;
     }
 

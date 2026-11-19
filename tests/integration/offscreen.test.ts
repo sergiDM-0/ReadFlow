@@ -1,13 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import browser from 'webextension-polyfill';
 
-const { synthesizeMock } = vi.hoisted(() => ({
+const { synthesizeMock, warmupMock } = vi.hoisted(() => ({
   synthesizeMock: vi.fn(),
+  warmupMock: vi.fn(),
 }));
 
 vi.mock('../../src/core/neural/piper-runtime', () => ({
   PiperRuntime: vi.fn().mockImplementation(() => ({
     synthesize: synthesizeMock,
+    warmup: warmupMock,
   })),
 }));
 
@@ -64,5 +66,26 @@ describe('offscreen Piper neural document listener', () => {
       { id: browser.runtime.id }
     );
     expect(errRes).toMatchObject({ ok: false, code: 'SYNTHESIS_FAILED', message: 'WASM OOM' });
+
+    // Warmup succeeds and handles errors cleanly
+    warmupMock.mockResolvedValueOnce(undefined);
+    const warmupOk = await listener!(
+      {
+        type: 'OFFSCREEN_PIPER_WARMUP',
+        payload: { voiceId: 'es_MX-claude-high' },
+      },
+      { id: browser.runtime.id }
+    );
+    expect(warmupOk).toEqual({ ok: true, data: { warmed: true } });
+
+    warmupMock.mockRejectedValueOnce(new Error('Offline'));
+    const warmupErr = await listener!(
+      {
+        type: 'OFFSCREEN_PIPER_WARMUP',
+        payload: { voiceId: 'es_MX-claude-high' },
+      },
+      { id: browser.runtime.id }
+    );
+    expect(warmupErr).toMatchObject({ ok: false, code: 'SYNTHESIS_FAILED', message: 'Offline' });
   });
 });

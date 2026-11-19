@@ -1,5 +1,6 @@
 import browser from 'webextension-polyfill';
 import { PiperRuntime } from '../core/neural/piper-runtime';
+import { resolvePiperVoiceForLang } from '../core/neural/piper-voices';
 import { getExtensionStorage } from '../shared/storage';
 import type { ExtensionMessage, MessageResult } from '../shared/types';
 import { handleRuntimeMessage } from './message-handler';
@@ -21,6 +22,17 @@ let offscreenCreatePromise: Promise<void> | null = null;
 function getChromeOffscreen(): ChromeOffscreenApi | null {
   const g = globalThis as unknown as { chrome?: { offscreen?: ChromeOffscreenApi } };
   return g.chrome?.offscreen ?? null;
+}
+
+function getOrCreateFirefoxRuntime(): PiperRuntime {
+  if (!firefoxRuntime) {
+    firefoxRuntime = new PiperRuntime({
+      ortWasmDir: browser.runtime.getURL('wasm/'),
+      piperWasm: browser.runtime.getURL('wasm/piper_phonemize.wasm'),
+      piperData: browser.runtime.getURL('wasm/piper_phonemize.data'),
+    });
+  }
+  return firefoxRuntime;
 }
 
 async function ensureOffscreenDocument(offscreen: ChromeOffscreenApi): Promise<void> {
@@ -64,15 +76,46 @@ async function synthesizeNeuralInBackground(request: {
     return response.data;
   }
 
-  // Firefox MV3 runs background scripts in an event page with full WebAssembly & Cache API support.
-  if (!firefoxRuntime) {
-    firefoxRuntime = new PiperRuntime({
-      ortWasmDir: browser.runtime.getURL('wasm/'),
-      piperWasm: browser.runtime.getURL('wasm/piper_phonemize.wasm'),
-      piperData: browser.runtime.getURL('wasm/piper_phonemize.data'),
-    });
+  return getOrCreateFirefoxRuntime().synthesize(request.text, request.voiceId);
+}
+
+async function warmupNeuralInBackground(voiceId: string): Promise<void> {
+  const offscreen = getChromeOffscreen();
+  if (offscreen) {
+    await ensureOffscreenDocument(offscreen);
+    const response = (await browser.runtime.sendMessage({
+      type: 'OFFSCREEN_PIPER_WARMUP',
+      payload: { voiceId },
+    } satisfies ExtensionMessage)) as MessageResult<{ readonly warmed: true }>;
+
+    if (!response || !response.ok) {
+      throw new Error(
+        response && !response.ok ? response.message : 'Offscreen neural warmup failed.'
+      );
+    }
+    return;
   }
-  return firefoxRuntime.synthesize(request.text, request.voiceId);
+
+  await getOrCreateFirefoxRuntime().warmup(voiceId);
+}
+
+function scheduleDefaultVoiceWarmup(): void {
+  void getExtensionStorage()
+    .getSettings()
+    .then((settings) => {
+      if (!settings.enabled || settings.engine !== 'piper-neural') {
+        return;
+      }
+      const uiLang =
+        (typeof navigator !== 'undefined' && navigator.language) ||
+        browser.i18n?.getUILanguage?.() ||
+        'es';
+      const defaultVoice = resolvePiperVoiceForLang(uiLang, settings.voicePreferences);
+      return warmupNeuralInBackground(defaultVoice.id);
+    })
+    .catch(() => {
+      // Warmup is best-effort; synthesis retries on demand if offline or blocked.
+    });
 }
 
 function registerContextMenu(): void {
@@ -118,10 +161,12 @@ async function sendToggleToActiveTab(
 
 browser.runtime.onInstalled?.addListener(() => {
   registerContextMenu();
+  scheduleDefaultVoiceWarmup();
 });
 
 browser.runtime.onStartup?.addListener(() => {
   registerContextMenu();
+  scheduleDefaultVoiceWarmup();
 });
 
 browser.contextMenus?.onClicked.addListener((info, tab) => {
@@ -139,7 +184,7 @@ browser.commands?.onCommand.addListener((command) => {
 
 browser.runtime.onMessage.addListener((message: unknown, sender: browser.Runtime.MessageSender) => {
   const msg = message as ExtensionMessage | undefined;
-  if (msg?.type === 'OFFSCREEN_PIPER_SYNTHESIZE') {
+  if (msg?.type === 'OFFSCREEN_PIPER_SYNTHESIZE' || msg?.type === 'OFFSCREEN_PIPER_WARMUP') {
     return undefined;
   }
 
@@ -147,6 +192,7 @@ browser.runtime.onMessage.addListener((message: unknown, sender: browser.Runtime
     runtimeId: browser.runtime.id,
     getSettings: () => getExtensionStorage().getSettings(),
     synthesizeNeural: synthesizeNeuralInBackground,
+    warmupNeural: warmupNeuralInBackground,
     detectLanguage: browser.i18n?.detectLanguage
       ? (text) => browser.i18n.detectLanguage(text)
       : undefined,

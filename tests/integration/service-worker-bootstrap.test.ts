@@ -1,6 +1,20 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import browser from 'webextension-polyfill';
 
+const { piperSynthesizeMock, piperWarmupMock } = vi.hoisted(() => ({
+  piperSynthesizeMock: vi
+    .fn()
+    .mockResolvedValue({ mimeType: 'audio/wav', audioBase64: 'UklGRg==' }),
+  piperWarmupMock: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock('../../src/core/neural/piper-runtime', () => ({
+  PiperRuntime: vi.fn().mockImplementation(() => ({
+    synthesize: piperSynthesizeMock,
+    warmup: piperWarmupMock,
+  })),
+}));
+
 describe('service-worker entrypoint wiring', () => {
   beforeEach(() => {
     vi.resetModules();
@@ -82,28 +96,47 @@ describe('service-worker entrypoint wiring', () => {
     );
     expect(res).toMatchObject({ ok: true });
 
-    // Background ignores OFFSCREEN_PIPER_SYNTHESIZE (intended for offscreen.html)
+    // Background ignores OFFSCREEN_PIPER_SYNTHESIZE and OFFSCREEN_PIPER_WARMUP (intended for offscreen.html)
     const ignored = messageListeners[0]?.(
       { type: 'OFFSCREEN_PIPER_SYNTHESIZE', payload: { text: 'Hi', voiceId: 'es_MX-claude-high' } },
       { id: browser.runtime.id }
     );
     expect(ignored).toBeUndefined();
+    const ignoredWarmup = messageListeners[0]?.(
+      { type: 'OFFSCREEN_PIPER_WARMUP', payload: { voiceId: 'es_MX-claude-high' } },
+      { id: browser.runtime.id }
+    );
+    expect(ignoredWarmup).toBeUndefined();
 
-    // Chrome offscreen path for NEURAL_TTS_SYNTHESIZE
+    // Firefox path warmup ran on startup/install
+    expect(piperWarmupMock).toHaveBeenCalled();
+
+    // Chrome offscreen path for NEURAL_TTS_SYNTHESIZE and NEURAL_TTS_WARMUP
     const createDocument = vi.fn().mockResolvedValue(undefined);
     (globalThis as unknown as { chrome?: unknown }).chrome = {
       offscreen: { hasDocument: vi.fn().mockResolvedValue(false), createDocument },
     };
-    vi.mocked(browser.runtime.sendMessage).mockResolvedValueOnce({
-      ok: true,
-      data: { mimeType: 'audio/wav', audioBase64: 'UklGRg==' },
-    });
+    vi.mocked(browser.runtime.sendMessage)
+      .mockResolvedValueOnce({
+        ok: true,
+        data: { mimeType: 'audio/wav', audioBase64: 'UklGRg==' },
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        data: { warmed: true },
+      });
     const neuralRes = await messageListeners[0]?.(
       { type: 'NEURAL_TTS_SYNTHESIZE', payload: { text: 'Hola', lang: 'es', rate: 1 } },
       { id: browser.runtime.id }
     );
     expect(createDocument).toHaveBeenCalledOnce();
     expect(neuralRes).toMatchObject({ ok: true });
+
+    const warmupRes = await messageListeners[0]?.(
+      { type: 'NEURAL_TTS_WARMUP', payload: { lang: 'es' } },
+      { id: browser.runtime.id }
+    );
+    expect(warmupRes).toMatchObject({ ok: true, data: { voiceId: 'es_MX-claude-high' } });
     delete (globalThis as unknown as { chrome?: unknown }).chrome;
   });
 });

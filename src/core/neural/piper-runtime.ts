@@ -19,6 +19,7 @@ interface PiperPhonemizeModule {
 }
 
 type PiperPhonemizeFactory = (opts: {
+  noExitRuntime?: boolean;
   print: (line: string) => void;
   printErr: (line: string) => void;
   locateFile: (file: string) => string;
@@ -36,6 +37,19 @@ export interface PiperSynthesizeResult {
 }
 
 const CACHE_NAME = 'echoselect-piper-models-v1';
+const MAX_AUDIO_CACHE_ENTRIES = 24;
+
+function resolveOptimalWasmThreads(): number {
+  const g = globalThis as unknown as {
+    crossOriginIsolated?: boolean;
+    navigator?: { hardwareConcurrency?: number };
+  };
+  if (g.crossOriginIsolated === true) {
+    const cores = g.navigator?.hardwareConcurrency ?? 2;
+    return Math.min(4, Math.max(1, cores));
+  }
+  return 1;
+}
 
 async function fetchCachedBytes(url: string): Promise<ArrayBuffer> {
   if (typeof caches !== 'undefined') {
@@ -68,29 +82,119 @@ export class PiperRuntime {
   private loadedVoiceId: string | null = null;
   private modelConfig: PiperModelConfig | null = null;
   private session: ort.InferenceSession | null = null;
+  private phonemizer: PiperPhonemizeModule | null = null;
+  private phonemizerInitPromise: Promise<PiperPhonemizeModule> | null = null;
+  private activePrintHandler: ((line: string) => void) | null = null;
+  private activeErrHandler: ((line: string) => void) | null = null;
+  private readonly audioCache = new Map<string, PiperSynthesizeResult>();
+  private warmupTargetVoiceId: string | null = null;
+  private warmupPromise: Promise<void> | null = null;
   private queue: Promise<unknown> = Promise.resolve();
 
   public constructor(wasmPaths: PiperWasmPaths) {
     this.wasmPaths = wasmPaths;
   }
 
+  public warmup(voiceId: string): Promise<void> {
+    if (this.loadedVoiceId === voiceId && this.session && this.modelConfig && this.phonemizer) {
+      return Promise.resolve();
+    }
+    if (this.warmupPromise && this.warmupTargetVoiceId === voiceId) {
+      return this.warmupPromise;
+    }
+
+    this.warmupTargetVoiceId = voiceId;
+    const task = this.queue.then(() => this.ensureVoiceLoaded(voiceId));
+    this.queue = task.catch(() => undefined);
+    this.warmupPromise = task.finally(() => {
+      if (this.warmupPromise === task) {
+        this.warmupPromise = null;
+        this.warmupTargetVoiceId = null;
+      }
+    });
+    return this.warmupPromise;
+  }
+
   public synthesize(text: string, voiceId: string): Promise<PiperSynthesizeResult> {
-    const task = this.queue.then(() => this.runSynthesis(text, voiceId));
+    const trimmed = text.trim();
+    if (!trimmed) {
+      return Promise.reject(new Error('Cannot synthesize empty text.'));
+    }
+
+    const cacheKey = `${voiceId}::${trimmed}`;
+    const cached = this.audioCache.get(cacheKey);
+    if (cached) {
+      // Refresh LRU ordering.
+      this.audioCache.delete(cacheKey);
+      this.audioCache.set(cacheKey, cached);
+      return Promise.resolve(cached);
+    }
+
+    const task = this.queue.then(async () => {
+      const result = await this.runSynthesis(trimmed, voiceId);
+      this.rememberAudio(cacheKey, result);
+      return result;
+    });
     this.queue = task.catch(() => undefined);
     return task;
   }
 
+  private rememberAudio(key: string, result: PiperSynthesizeResult): void {
+    if (this.audioCache.size >= MAX_AUDIO_CACHE_ENTRIES) {
+      const oldestKey = this.audioCache.keys().next().value;
+      if (oldestKey !== undefined) {
+        this.audioCache.delete(oldestKey);
+      }
+    }
+    this.audioCache.set(key, result);
+  }
+
+  private ensurePhonemizerLoaded(): Promise<PiperPhonemizeModule> {
+    if (this.phonemizer) {
+      return Promise.resolve(this.phonemizer);
+    }
+    if (this.phonemizerInitPromise) {
+      return this.phonemizerInitPromise;
+    }
+
+    const factory = createPiperPhonemize as unknown as PiperPhonemizeFactory;
+    this.phonemizerInitPromise = factory({
+      noExitRuntime: true,
+      print: (line: string) => {
+        this.activePrintHandler?.(line);
+      },
+      printErr: (errLine: string) => {
+        this.activeErrHandler?.(errLine);
+      },
+      locateFile: (file: string) => {
+        if (file.endsWith('.wasm')) return this.wasmPaths.piperWasm;
+        if (file.endsWith('.data')) return this.wasmPaths.piperData;
+        return file;
+      },
+    })
+      .then((mod) => {
+        this.phonemizer = mod;
+        return mod;
+      })
+      .finally(() => {
+        this.phonemizerInitPromise = null;
+      });
+
+    return this.phonemizerInitPromise;
+  }
+
   private async ensureVoiceLoaded(voiceId: string): Promise<void> {
     if (this.loadedVoiceId === voiceId && this.session && this.modelConfig) {
+      await this.ensurePhonemizerLoaded();
       return;
     }
 
-    // Configure single-threaded local WASM (no SharedArrayBuffer / COOP-COEP needed in MV3).
-    ort.env.wasm.numThreads = 1;
+    ort.env.wasm.numThreads = resolveOptimalWasmThreads();
     ort.env.wasm.wasmPaths = this.wasmPaths.ortWasmDir;
 
     const { modelUrl, configUrl } = getPiperModelUrls(voiceId);
-    const [configBytes, modelBytes] = await Promise.all([
+    const [, configBytes, modelBytes] = await Promise.all([
+      this.ensurePhonemizerLoaded(),
       fetchCachedBytes(configUrl),
       fetchCachedBytes(modelUrl),
     ]);
@@ -99,8 +203,11 @@ export class PiperRuntime {
     const parsedConfig = JSON.parse(configText) as PiperModelConfig;
 
     const prevSession = this.session;
-    this.session = await ort.InferenceSession.create(modelBytes, {
+    this.session = await ort.InferenceSession.create(new Uint8Array(modelBytes), {
       executionProviders: ['wasm'],
+      graphOptimizationLevel: 'all',
+      enableMemPattern: true,
+      enableCpuMemArena: true,
     });
     this.modelConfig = parsedConfig;
     this.loadedVoiceId = voiceId;
@@ -111,58 +218,48 @@ export class PiperRuntime {
   }
 
   private async phonemize(text: string, espeakVoice: string): Promise<number[]> {
-    const factory = createPiperPhonemize as unknown as PiperPhonemizeFactory;
-    const input = JSON.stringify([{ text: text.trim() }]);
+    const mod = await this.ensurePhonemizerLoaded();
+    const input = JSON.stringify([{ text }]);
+    let capturedIds: number[] | null = null;
+    let capturedError: string | null = null;
 
-    return new Promise<number[]>((resolve, reject) => {
-      let resolved = false;
-      void factory({
-        print: (line: string) => {
-          if (resolved) return;
-          try {
-            const parsed = JSON.parse(line) as { phoneme_ids?: number[] };
-            if (Array.isArray(parsed.phoneme_ids)) {
-              resolved = true;
-              resolve(parsed.phoneme_ids);
-            }
-          } catch {
-            // Ignore non-JSON diagnostic lines from espeak.
-          }
-        },
-        printErr: (errLine: string) => {
-          if (!resolved && errLine.toLowerCase().includes('error')) {
-            resolved = true;
-            reject(new Error(errLine));
-          }
-        },
-        locateFile: (file: string) => {
-          if (file.endsWith('.wasm')) return this.wasmPaths.piperWasm;
-          if (file.endsWith('.data')) return this.wasmPaths.piperData;
-          return file;
-        },
-      })
-        .then((mod) => {
-          mod.callMain(['-l', espeakVoice, '--input', input, '--espeak_data', '/espeak-ng-data']);
-          if (!resolved) {
-            resolved = true;
-            resolve([]);
-          }
-        })
-        .catch((err) => {
-          if (!resolved) {
-            resolved = true;
-            reject(err);
-          }
-        });
-    });
-  }
+    this.activePrintHandler = (line: string) => {
+      if (capturedIds !== null) return;
+      try {
+        const parsed = JSON.parse(line) as { phoneme_ids?: number[] };
+        if (Array.isArray(parsed.phoneme_ids)) {
+          capturedIds = parsed.phoneme_ids;
+        }
+      } catch {
+        // Ignore non-JSON diagnostic lines from espeak.
+      }
+    };
 
-  private async runSynthesis(text: string, voiceId: string): Promise<PiperSynthesizeResult> {
-    const trimmed = text.trim();
-    if (!trimmed) {
-      throw new Error('Cannot synthesize empty text.');
+    this.activeErrHandler = (errLine: string) => {
+      if (capturedError === null && errLine.toLowerCase().includes('error')) {
+        capturedError = errLine;
+      }
+    };
+
+    try {
+      mod.callMain(['-l', espeakVoice, '--input', input, '--espeak_data', '/espeak-ng-data']);
+    } catch (err) {
+      // Discard potentially corrupted Emscripten instance so next call recovers cleanly.
+      this.phonemizer = null;
+      throw err;
+    } finally {
+      this.activePrintHandler = null;
+      this.activeErrHandler = null;
     }
 
+    if (capturedError !== null) {
+      throw new Error(capturedError);
+    }
+
+    return capturedIds ?? [];
+  }
+
+  private async runSynthesis(trimmed: string, voiceId: string): Promise<PiperSynthesizeResult> {
     await this.ensureVoiceLoaded(voiceId);
     if (!this.session || !this.modelConfig) {
       throw new Error('Piper ONNX session failed to initialize.');

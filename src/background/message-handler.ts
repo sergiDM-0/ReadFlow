@@ -25,6 +25,7 @@ export interface MessageHandlerDeps {
     readonly text: string;
     readonly voiceId: string;
   }) => Promise<{ readonly mimeType: string; readonly audioBase64: string }>;
+  readonly warmupNeural?: (voiceId: string) => Promise<void>;
   readonly fetchFn?: typeof fetch;
 }
 
@@ -107,6 +108,10 @@ export async function handleRuntimeMessage(
     return handleNeuralSynthesize(message.payload, sender, deps);
   }
 
+  if (message.type === 'NEURAL_TTS_WARMUP') {
+    return handleNeuralWarmup(message.payload, sender, deps);
+  }
+
   if (message.type === 'LOCAL_TTS_SYNTHESIZE') {
     return handleLocalSynthesize(message.payload, sender, deps);
   }
@@ -179,6 +184,59 @@ async function handleNeuralSynthesize(
       ok: false,
       code: 'SYNTHESIS_FAILED',
       message: err instanceof Error ? err.message : 'Neural TTS synthesis failed.',
+    };
+  }
+}
+
+async function handleNeuralWarmup(
+  rawPayload: unknown,
+  sender: MessageSenderLike,
+  deps: MessageHandlerDeps
+): Promise<MessageResult<{ readonly voiceId: string }>> {
+  if (!isRecord(rawPayload)) {
+    return { ok: false, code: 'INVALID_MESSAGE', message: 'Missing neural warmup payload.' };
+  }
+
+  if (!deps.warmupNeural) {
+    return { ok: true, data: { voiceId: '' } };
+  }
+
+  const lang = typeof rawPayload.lang === 'string' ? rawPayload.lang : 'es';
+  const requestedVoiceId = typeof rawPayload.voiceId === 'string' ? rawPayload.voiceId : '';
+
+  let voicePrefs: Readonly<Record<string, string>> = {};
+  if (deps.getSettings) {
+    const settings = await deps.getSettings();
+    const senderHost = extractSenderHostname(sender);
+    if (!settings.enabled || settings.engine !== 'piper-neural') {
+      return {
+        ok: false,
+        code: 'ENGINE_UNAVAILABLE',
+        message: 'Neural TTS engine is disabled in extension settings.',
+      };
+    }
+    if (senderHost && isHostBlocked(senderHost, settings.blockedDomains)) {
+      return {
+        ok: false,
+        code: 'UNAUTHORIZED_SENDER',
+        message: 'Neural TTS is blocked for this domain.',
+      };
+    }
+    voicePrefs = settings.voicePreferences;
+  }
+
+  const resolvedVoice =
+    (requestedVoiceId ? findPiperVoiceById(requestedVoiceId) : undefined) ??
+    resolvePiperVoiceForLang(lang, voicePrefs);
+
+  try {
+    await deps.warmupNeural(resolvedVoice.id);
+    return { ok: true, data: { voiceId: resolvedVoice.id } };
+  } catch (err) {
+    return {
+      ok: false,
+      code: 'SYNTHESIS_FAILED',
+      message: err instanceof Error ? err.message : 'Neural TTS warmup failed.',
     };
   }
 }

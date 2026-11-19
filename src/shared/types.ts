@@ -143,9 +143,22 @@ export type ExtensionMessage =
       };
     }
   | {
+      readonly type: 'NEURAL_TTS_WARMUP';
+      readonly payload: {
+        readonly lang: string;
+        readonly voiceId?: string;
+      };
+    }
+  | {
       readonly type: 'OFFSCREEN_PIPER_SYNTHESIZE';
       readonly payload: {
         readonly text: string;
+        readonly voiceId: string;
+      };
+    }
+  | {
+      readonly type: 'OFFSCREEN_PIPER_WARMUP';
+      readonly payload: {
         readonly voiceId: string;
       };
     }
