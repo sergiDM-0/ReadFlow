@@ -13,6 +13,7 @@ function createPopupDom(): HTMLElement {
     ['select', { id: 'select-engine' }],
     ['select', { id: 'select-voice-es' }],
     ['select', { id: 'select-voice-en' }],
+    ['input', { id: 'toggle-autoread-selection', type: 'checkbox' }],
     ['input', { id: 'toggle-gemini-autoread', type: 'checkbox' }],
     ['input', { id: 'toggle-omit-code', type: 'checkbox' }],
     ['input', { id: 'input-local-endpoint', type: 'url' }],
@@ -157,6 +158,10 @@ describe('popup controller', () => {
     engineSel.value = 'local-http';
     engineSel.dispatchEvent(new Event('change'));
 
+    const autoSelCb = document.querySelector('#toggle-autoread-selection') as HTMLInputElement;
+    autoSelCb.checked = true;
+    autoSelCb.dispatchEvent(new Event('change'));
+
     const geminiCb = document.querySelector('#toggle-gemini-autoread') as HTMLInputElement;
     geminiCb.checked = true;
     geminiCb.dispatchEvent(new Event('change'));
@@ -179,6 +184,7 @@ describe('popup controller', () => {
     expect(saved.engine).toBe('local-http');
     expect(saved.voicePreferences.es).toBe('es_ES-sharvard-medium');
     expect(saved.voicePreferences.en).toBe('en_US-amy-medium');
+    expect(saved.autoReadSelection).toBe(true);
     expect(saved.geminiAutoRead).toBe(true);
     expect(saved.omitCodeBlocks).toBe(false);
     expect(saved.blockedDomains).not.toContain('news.example.com');

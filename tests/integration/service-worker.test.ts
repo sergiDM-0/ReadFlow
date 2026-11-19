@@ -244,6 +244,7 @@ describe('background message handler', () => {
           theme: 'auto',
           omitCodeBlocks: true,
           stripUrls: true,
+          autoReadSelection: false,
           geminiAutoRead: false,
           localHttp: {
             endpointUrl: 'http://127.0.0.1:5000/tts',
@@ -282,6 +283,7 @@ describe('background message handler', () => {
           theme: 'auto',
           omitCodeBlocks: true,
           stripUrls: true,
+          autoReadSelection: false,
           geminiAutoRead: false,
           localHttp: {
             endpointUrl: 'http://127.0.0.1:5000/tts',
@@ -324,6 +326,7 @@ describe('background message handler', () => {
           theme: 'auto',
           omitCodeBlocks: true,
           stripUrls: true,
+          autoReadSelection: false,
           geminiAutoRead: false,
           localHttp: {
             endpointUrl: 'http://127.0.0.1:5000/trusted',
@@ -382,6 +385,7 @@ describe('background message handler', () => {
           theme: 'auto',
           omitCodeBlocks: true,
           stripUrls: true,
+          autoReadSelection: false,
           geminiAutoRead: false,
           localHttp: {
             endpointUrl: 'http://127.0.0.1:5000/tts',
@@ -448,6 +452,7 @@ describe('background message handler', () => {
               theme: 'auto',
               omitCodeBlocks: true,
               stripUrls: true,
+              autoReadSelection: false,
               geminiAutoRead: false,
               localHttp: {
                 endpointUrl: 'http://127.0.0.1:5000/tts',
@@ -498,6 +503,7 @@ describe('background message handler', () => {
               theme: 'auto',
               omitCodeBlocks: true,
               stripUrls: true,
+              autoReadSelection: false,
               geminiAutoRead: false,
               localHttp: {
                 endpointUrl: 'http://127.0.0.1:5000/tts',

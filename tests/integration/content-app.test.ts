@@ -191,9 +191,13 @@ describe('EchoSelectContentApp integration', () => {
 
       pill?.click();
       expect(pill?.getAttribute('aria-pressed')).toBe('true');
+      expect(pill?.querySelectorAll('svg')).toHaveLength(1);
+      expect(pill?.querySelector('.es-pill-badge')?.textContent).toBe('ON');
 
       pill?.click();
       expect(pill?.getAttribute('aria-pressed')).toBe('false');
+      expect(pill?.querySelectorAll('svg')).toHaveLength(1);
+      expect(pill?.querySelector('.es-pill-badge')?.textContent).toBe('OFF');
 
       app.destroy();
     } finally {
@@ -202,6 +206,48 @@ describe('EchoSelectContentApp integration', () => {
         value: originalLocation,
       });
     }
+  });
+
+  it('auto-reads any selected text immediately when Auto-lectura is ON without duplicating icons', async () => {
+    const app = new EchoSelectContentApp();
+    await app.start();
+
+    const shadow = document.querySelector('echo-select-ui')?.shadowRoot;
+    const pill = shadow?.querySelector(
+      'button[data-es-role="gemini-autoread-toggle"]'
+    ) as HTMLButtonElement | null;
+    expect(pill).not.toBeNull();
+    expect(pill?.querySelectorAll('svg')).toHaveLength(1);
+
+    // Enable Auto-lectura
+    pill?.click();
+    expect(pill?.getAttribute('aria-pressed')).toBe('true');
+    expect(pill?.querySelectorAll('svg')).toHaveLength(1);
+
+    // Simulate selecting text on the page
+    const p = document.createElement('p');
+    p.textContent = 'Texto seleccionado para lectura automática inmediata.';
+    document.body.appendChild(p);
+    const range = document.createRange();
+    range.selectNodeContents(p);
+    range.getBoundingClientRect = () =>
+      ({ top: 100, left: 100, right: 300, bottom: 120, width: 200, height: 20 }) as DOMRect;
+    const sel = window.getSelection();
+    sel?.removeAllRanges();
+    sel?.addRange(range);
+
+    document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+    await new Promise((r) => setTimeout(r, 120));
+
+    expect(mockUtterances.length).toBeGreaterThanOrEqual(1);
+    expect(mockUtterances[0]?.text).toContain('Texto seleccionado');
+    // Floating trigger stays hidden when auto-reading
+    const triggerBtn = shadow?.querySelector(
+      'button[data-es-role="floating-trigger"]'
+    ) as HTMLButtonElement | null;
+    expect(triggerBtn?.hidden).toBe(true);
+
+    app.destroy();
   });
 
   it('uses piper-neural as default engine and handles neural transport errors cleanly', async () => {

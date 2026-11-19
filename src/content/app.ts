@@ -91,6 +91,46 @@ function sendNeuralWarmup(lang: string, voiceId?: string): void {
     .catch(() => undefined);
 }
 
+function createSpeakerSvg(active: boolean): SVGSVGElement {
+  const ns = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(ns, 'svg');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('width', '15');
+  svg.setAttribute('height', '15');
+  svg.setAttribute('fill', 'none');
+  svg.setAttribute('stroke', 'currentColor');
+  svg.setAttribute('stroke-width', '2');
+  svg.setAttribute('stroke-linecap', 'round');
+  svg.setAttribute('stroke-linejoin', 'round');
+  svg.setAttribute('aria-hidden', 'true');
+
+  const body = document.createElementNS(ns, 'polygon');
+  body.setAttribute('points', '11 5 6 9 2 9 2 15 6 15 11 19 11 5');
+  svg.appendChild(body);
+
+  if (active) {
+    const wave1 = document.createElementNS(ns, 'path');
+    wave1.setAttribute('d', 'M15.54 8.46a5 5 0 0 1 0 7.07');
+    const wave2 = document.createElementNS(ns, 'path');
+    wave2.setAttribute('d', 'M19.07 4.93a10 10 0 0 1 0 14.14');
+    svg.append(wave1, wave2);
+  } else {
+    const slash1 = document.createElementNS(ns, 'line');
+    slash1.setAttribute('x1', '22');
+    slash1.setAttribute('y1', '9');
+    slash1.setAttribute('x2', '16');
+    slash1.setAttribute('y2', '15');
+    const slash2 = document.createElementNS(ns, 'line');
+    slash2.setAttribute('x1', '16');
+    slash2.setAttribute('y1', '9');
+    slash2.setAttribute('x2', '22');
+    slash2.setAttribute('y2', '15');
+    svg.append(slash1, slash2);
+  }
+
+  return svg;
+}
+
 function createEngineForSettings(settings: ExtensionSettings): TTSEngineInterface {
   if (settings.engine === 'local-http') {
     return new LocalHttpEngine(settings.localHttp, sendLocalSynthesize);
@@ -108,10 +148,14 @@ export class EchoSelectContentApp {
   private miniPlayer: MiniPlayer | null = null;
   private selectionHandler: SelectionHandler | null = null;
   private geminiAdapter: GeminiAdapter | null = null;
-  private geminiToggleBtn: HTMLButtonElement | null = null;
+  private autoReadToggleBtn: HTMLButtonElement | null = null;
+  private autoReadIconSlot: HTMLSpanElement | null = null;
+  private autoReadBadge: HTMLSpanElement | null = null;
   private ttsManager: TTSManager | null = null;
   private currentEngine: TTSEngineInterface | null = null;
+  private activeEngineConfigKey = '';
   private pendingText = '';
+  private lastAutoReadText = '';
   private warmedVoiceKey = '';
   private speakSeq = 0;
   private streamQueue: Promise<void> = Promise.resolve();
@@ -174,9 +218,23 @@ export class EchoSelectContentApp {
       this.mountUi();
     } else {
       this.host.setTheme(this.settings.theme);
-      this.refreshEngine();
-      this.syncGeminiToggleUi();
+      this.refreshEngineIfNeeded();
+      this.syncAutoReadUi();
     }
+  }
+
+  private getEngineConfigKey(settings: ExtensionSettings): string {
+    if (settings.engine === 'local-http') {
+      return `local-http::${settings.localHttp.endpointUrl}::${settings.localHttp.protocol}::${settings.localHttp.timeoutMs}`;
+    }
+    return settings.engine;
+  }
+
+  private isAutoReadActive(): boolean {
+    if (this.settings.autoReadSelection) {
+      return true;
+    }
+    return Boolean(this.geminiAdapter && this.settings.geminiAutoRead);
   }
 
   private mountUi(): void {
@@ -184,6 +242,7 @@ export class EchoSelectContentApp {
     this.host.mount();
 
     this.currentEngine = createEngineForSettings(this.settings);
+    this.activeEngineConfigKey = this.getEngineConfigKey(this.settings);
     this.ttsManager = new TTSManager(this.currentEngine, this.settings.defaultRate);
 
     this.floatingBtn = new FloatingButton(this.host.container, () => {
@@ -196,7 +255,10 @@ export class EchoSelectContentApp {
 
     this.miniPlayer = new MiniPlayer(this.host.container, {
       onTogglePlayPause: () => this.ttsManager?.togglePauseResume(),
-      onStop: () => this.ttsManager?.stop(),
+      onStop: () => {
+        this.lastAutoReadText = '';
+        this.ttsManager?.stop();
+      },
       onPrev: () => this.ttsManager?.prev(),
       onNext: () => this.ttsManager?.next(),
       onRateChange: (rate) => this.ttsManager?.setRate(rate),
@@ -204,6 +266,9 @@ export class EchoSelectContentApp {
 
     this.unsubTts = this.ttsManager.subscribe((state) => {
       this.miniPlayer?.update(state);
+      if (state.status === 'idle') {
+        this.lastAutoReadText = '';
+      }
     });
 
     this.selectionHandler = new SelectionHandler({
@@ -212,59 +277,112 @@ export class EchoSelectContentApp {
       stripUrls: () => this.settings.stripUrls,
       onSelect: ({ text, position }) => {
         this.pendingText = text;
+        if (this.isAutoReadActive()) {
+          this.floatingBtn?.hide();
+          const status = this.ttsManager?.getState().status;
+          if (text === this.lastAutoReadText && (status === 'playing' || status === 'loading')) {
+            return;
+          }
+          this.lastAutoReadText = text;
+          void this.speakText(text, 'selection', false);
+          return;
+        }
         this.floatingBtn?.show(position);
         this.warmupNeuralForText(text);
       },
       onClear: () => {
         this.pendingText = '';
+        this.lastAutoReadText = '';
         this.floatingBtn?.hide();
       },
     });
     this.selectionHandler.attach();
 
     if (GEMINI_SELECTORS.hostPattern.test(window.location.hostname)) {
-      this.mountGeminiAdapter();
+      this.geminiAdapter = new GeminiAdapter({
+        omitCodeBlocks: this.settings.omitCodeBlocks,
+        onSentences: (sentences) => {
+          void this.enqueueStreamingSentences(sentences);
+        },
+      });
     }
+
+    this.mountAutoReadPill();
   }
 
-  private mountGeminiAdapter(): void {
+  private mountAutoReadPill(): void {
     if (!this.host) return;
-
-    this.geminiAdapter = new GeminiAdapter({
-      omitCodeBlocks: this.settings.omitCodeBlocks,
-      onSentences: (sentences) => {
-        void this.enqueueStreamingSentences(sentences);
-      },
-    });
 
     const pill = document.createElement('button');
     pill.type = 'button';
     pill.className = 'es-gemini-pill';
     pill.setAttribute('data-es-role', 'gemini-autoread-toggle');
+    pill.title = 'Al activar, todo texto que selecciones se leerá automáticamente';
+
+    const iconSlot = document.createElement('span');
+    iconSlot.className = 'es-pill-icon';
+    iconSlot.setAttribute('aria-hidden', 'true');
+
+    const label = document.createElement('span');
+    label.className = 'es-pill-label';
+    label.textContent = 'Auto-lectura';
+
+    const badge = document.createElement('span');
+    badge.className = 'es-pill-badge';
+
+    pill.append(iconSlot, label, badge);
     pill.addEventListener('click', () => {
-      const next = !this.geminiAdapter?.isEnabled();
-      this.geminiAdapter?.setEnabled(next);
-      this.updateGeminiPillLabel(next);
+      const next = !this.isAutoReadActive();
+      const patch: Partial<ExtensionSettings> = this.geminiAdapter
+        ? { autoReadSelection: next, geminiAutoRead: next }
+        : { autoReadSelection: next };
+      this.settings = { ...this.settings, ...patch };
+      this.syncAutoReadUi();
+      void getExtensionStorage()
+        .updateSettings(patch)
+        .catch(() => undefined);
+
       if (!next) {
+        this.lastAutoReadText = '';
         this.ttsManager?.stop();
+        return;
+      }
+
+      const selected = this.pendingText || this.selectionHandler?.getCurrentSelectedText() || '';
+      if (selected) {
+        this.floatingBtn?.hide();
+        this.lastAutoReadText = selected;
+        void this.speakText(selected, 'selection', false);
       }
     });
 
-    this.geminiToggleBtn = pill;
+    this.autoReadToggleBtn = pill;
+    this.autoReadIconSlot = iconSlot;
+    this.autoReadBadge = badge;
     this.host.container.appendChild(pill);
-    this.syncGeminiToggleUi();
+    this.syncAutoReadUi();
   }
 
-  private syncGeminiToggleUi(): void {
-    if (!this.geminiAdapter || !this.geminiToggleBtn) return;
-    this.geminiAdapter.setEnabled(this.settings.geminiAutoRead);
-    this.updateGeminiPillLabel(this.settings.geminiAutoRead);
+  private syncAutoReadUi(): void {
+    const active = this.isAutoReadActive();
+    if (this.geminiAdapter) {
+      this.geminiAdapter.setEnabled(
+        this.settings.geminiAutoRead || this.settings.autoReadSelection
+      );
+    }
+    this.updateAutoReadPillVisual(active);
   }
 
-  private updateGeminiPillLabel(active: boolean): void {
-    if (!this.geminiToggleBtn) return;
-    this.geminiToggleBtn.setAttribute('aria-pressed', String(active));
-    this.geminiToggleBtn.textContent = active ? '🔊 Auto-lectura: ON' : '🔇 Auto-lectura: OFF';
+  private updateAutoReadPillVisual(active: boolean): void {
+    if (!this.autoReadToggleBtn || !this.autoReadIconSlot || !this.autoReadBadge) return;
+    this.autoReadToggleBtn.setAttribute('aria-pressed', String(active));
+    this.autoReadToggleBtn.setAttribute(
+      'aria-label',
+      active ? 'Desactivar auto-lectura al seleccionar' : 'Activar auto-lectura al seleccionar'
+    );
+    this.autoReadIconSlot.textContent = '';
+    this.autoReadIconSlot.appendChild(createSpeakerSvg(active));
+    this.autoReadBadge.textContent = active ? 'ON' : 'OFF';
   }
 
   private warmupNeuralForText(text: string): void {
@@ -278,22 +396,30 @@ export class EchoSelectContentApp {
     sendNeuralWarmup(lang, preferredVoiceId);
   }
 
-  private refreshEngine(): void {
+  private refreshEngineIfNeeded(): void {
     if (!this.ttsManager) return;
-    this.warmedVoiceKey = '';
-    const nextEngine = createEngineForSettings(this.settings);
-    this.currentEngine?.dispose();
-    this.currentEngine = nextEngine;
-    this.ttsManager.setEngine(nextEngine);
-    this.ttsManager.setRate(this.settings.defaultRate);
+    const nextKey = this.getEngineConfigKey(this.settings);
+    if (nextKey !== this.activeEngineConfigKey) {
+      this.warmedVoiceKey = '';
+      this.activeEngineConfigKey = nextKey;
+      const nextEngine = createEngineForSettings(this.settings);
+      this.currentEngine?.dispose();
+      this.currentEngine = nextEngine;
+      this.ttsManager.setEngine(nextEngine);
+    }
+    if (this.ttsManager.getState().rate !== this.settings.defaultRate) {
+      this.ttsManager.setRate(this.settings.defaultRate);
+    }
   }
 
   private teardownUi(): void {
     this.speakSeq += 1;
     this.geminiAdapter?.dispose();
     this.geminiAdapter = null;
-    this.geminiToggleBtn?.remove();
-    this.geminiToggleBtn = null;
+    this.autoReadToggleBtn?.remove();
+    this.autoReadToggleBtn = null;
+    this.autoReadIconSlot = null;
+    this.autoReadBadge = null;
     this.selectionHandler?.detach();
     this.selectionHandler = null;
     this.unsubTts?.();
@@ -301,6 +427,7 @@ export class EchoSelectContentApp {
     this.ttsManager?.dispose();
     this.ttsManager = null;
     this.currentEngine = null;
+    this.activeEngineConfigKey = '';
     this.floatingBtn?.destroy();
     this.floatingBtn = null;
     this.miniPlayer?.destroy();
@@ -308,6 +435,7 @@ export class EchoSelectContentApp {
     this.host?.destroy();
     this.host = null;
     this.pendingText = '';
+    this.lastAutoReadText = '';
   }
 
   private async handleToggleCommand(

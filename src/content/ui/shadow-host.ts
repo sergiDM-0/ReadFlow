@@ -18,6 +18,12 @@ export class ShadowHost {
   }
 
   public mount(): void {
+    // Clean up any orphaned host elements left behind by extension reloads (e.g. Firefox about:debugging).
+    document.querySelectorAll('echo-select-ui').forEach((existing) => {
+      if (existing !== this.hostElement) {
+        existing.remove();
+      }
+    });
     if (!this.hostElement.isConnected) {
       (document.documentElement ?? document.body).appendChild(this.hostElement);
     }

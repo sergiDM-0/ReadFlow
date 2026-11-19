@@ -211,21 +211,61 @@ export const SHADOW_UI_STYLES = `
   pointer-events: auto;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 7px 12px;
+  gap: 7px;
+  padding: 6px 11px;
   border: 1px solid var(--es-border);
   border-radius: 999px;
   background: var(--es-bg);
   color: var(--es-text);
   font-size: 12px;
   font-weight: 600;
+  line-height: 1;
   box-shadow: var(--es-shadow);
   cursor: pointer;
+  user-select: none;
+  transition: border-color 140ms ease, background-color 140ms ease, color 140ms ease;
+}
+
+.es-gemini-pill:hover {
+  background: var(--es-bg-hover);
 }
 
 .es-gemini-pill[aria-pressed="true"] {
   border-color: var(--es-accent);
+  color: var(--es-text);
+}
+
+.es-pill-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+  color: var(--es-text-muted);
+}
+
+.es-gemini-pill[aria-pressed="true"] .es-pill-icon {
   color: var(--es-accent);
+}
+
+.es-pill-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  background: var(--es-bg-hover);
+  color: var(--es-text-muted);
+}
+
+.es-gemini-pill[aria-pressed="true"] .es-pill-badge {
+  background: var(--es-status-active);
+  color: #ffffff;
 }
 
 @media (prefers-reduced-motion: reduce) {

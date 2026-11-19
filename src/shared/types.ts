@@ -61,6 +61,7 @@ export interface ExtensionSettings {
   readonly theme: ThemePreference;
   readonly omitCodeBlocks: boolean;
   readonly stripUrls: boolean;
+  readonly autoReadSelection: boolean;
   readonly geminiAutoRead: boolean;
   readonly localHttp: LocalHttpConfig;
 }
@@ -75,6 +76,7 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
   theme: 'auto',
   omitCodeBlocks: true,
   stripUrls: true,
+  autoReadSelection: false,
   geminiAutoRead: false,
   localHttp: {
     endpointUrl: 'http://127.0.0.1:5000/tts',

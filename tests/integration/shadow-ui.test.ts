@@ -8,13 +8,17 @@ describe('Shadow DOM UI lifecycle', () => {
     document.querySelectorAll('echo-select-ui').forEach((el) => el.remove());
   });
 
-  it('mounts cleanly in ShadowRoot and leaves zero DOM nodes after destroy', () => {
+  it('mounts cleanly in ShadowRoot, removes orphaned hosts on reload, and leaves zero DOM nodes after destroy', () => {
+    const staleHost = document.createElement('echo-select-ui');
+    document.documentElement.appendChild(staleHost);
+
     const host = new ShadowHost('auto');
     host.mount();
 
-    const hostEl = document.querySelector('echo-select-ui');
-    expect(hostEl).not.toBeNull();
-    expect(hostEl?.shadowRoot).not.toBeNull();
+    const hostEls = document.querySelectorAll('echo-select-ui');
+    expect(hostEls).toHaveLength(1);
+    expect(hostEls[0]).toBe(host.hostElement);
+    expect(hostEls[0]?.shadowRoot).not.toBeNull();
 
     host.destroy();
     expect(document.querySelector('echo-select-ui')).toBeNull();

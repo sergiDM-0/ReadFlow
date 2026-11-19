@@ -93,6 +93,10 @@ export function mergeSettings(raw: unknown): ExtensionSettings {
         ? input.omitCodeBlocks
         : DEFAULT_SETTINGS.omitCodeBlocks,
     stripUrls: typeof input.stripUrls === 'boolean' ? input.stripUrls : DEFAULT_SETTINGS.stripUrls,
+    autoReadSelection:
+      typeof input.autoReadSelection === 'boolean'
+        ? input.autoReadSelection
+        : DEFAULT_SETTINGS.autoReadSelection,
     geminiAutoRead:
       typeof input.geminiAutoRead === 'boolean'
         ? input.geminiAutoRead

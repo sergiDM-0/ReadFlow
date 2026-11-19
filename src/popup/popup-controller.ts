@@ -102,6 +102,9 @@ export async function initPopup(options: InitPopupOptions): Promise<void> {
   const selectEngine = root.querySelector('#select-engine') as HTMLSelectElement | null;
   const selectVoiceEs = root.querySelector('#select-voice-es') as HTMLSelectElement | null;
   const selectVoiceEn = root.querySelector('#select-voice-en') as HTMLSelectElement | null;
+  const toggleAutoReadSelection = root.querySelector(
+    '#toggle-autoread-selection'
+  ) as HTMLInputElement | null;
   const toggleGemini = root.querySelector('#toggle-gemini-autoread') as HTMLInputElement | null;
   const toggleOmitCode = root.querySelector('#toggle-omit-code') as HTMLInputElement | null;
   const inputEndpoint = root.querySelector('#input-local-endpoint') as HTMLInputElement | null;
@@ -165,6 +168,7 @@ export async function initPopup(options: InitPopupOptions): Promise<void> {
     }
     if (selectRate) selectRate.value = String(settings.defaultRate);
     if (selectEngine) selectEngine.value = settings.engine;
+    if (toggleAutoReadSelection) toggleAutoReadSelection.checked = settings.autoReadSelection;
     if (toggleGemini) toggleGemini.checked = settings.geminiAutoRead;
     if (toggleOmitCode) toggleOmitCode.checked = settings.omitCodeBlocks;
     if (inputEndpoint) inputEndpoint.value = settings.localHttp.endpointUrl;
@@ -228,6 +232,10 @@ export async function initPopup(options: InitPopupOptions): Promise<void> {
         warmupNeuralVoice?.('en', nextVoiceId || undefined);
       }
     });
+  });
+
+  toggleAutoReadSelection?.addEventListener('change', () => {
+    persistPatch({ autoReadSelection: toggleAutoReadSelection.checked });
   });
 
   toggleGemini?.addEventListener('change', () => {
