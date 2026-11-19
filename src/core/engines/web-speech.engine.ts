@@ -166,7 +166,7 @@ export class WebSpeechEngine implements TTSEngineInterface {
 
   private startKeepAlive(): void {
     this.clearKeepAlive();
-    if (!this.synth) return;
+    if (!this.synth || !this.capabilities.supportsPauseResume) return;
     this.keepAliveTimer = setInterval(() => {
       if (this.synth?.speaking && !this.synth.paused) {
         this.synth.pause();

@@ -38,17 +38,10 @@ export interface PiperSynthesizeResult {
 
 const CACHE_NAME = 'echoselect-piper-models-v1';
 const MAX_AUDIO_CACHE_ENTRIES = 24;
-// Slightly brisker natural cadence (~13% faster synthesis and smoother flow without pitch shift).
-const BASE_CADENCE_SCALE = 0.88;
-const MIN_LENGTH_SCALE = 0.45;
-const MAX_LENGTH_SCALE = 1.6;
-
-function normalizeRate(rate?: number): number {
-  if (typeof rate !== 'number' || !Number.isFinite(rate)) {
-    return 1;
-  }
-  return Math.min(2.5, Math.max(0.5, rate));
-}
+// Fixed brisk natural cadence (~10% livelier) so voice timbre stays 100% consistent across speed changes.
+const BASE_CADENCE_SCALE = 0.9;
+const MIN_LENGTH_SCALE = 0.65;
+const MAX_LENGTH_SCALE = 1.35;
 
 function resolveOptimalWasmThreads(): number {
   const g = globalThis as unknown as {
@@ -131,14 +124,15 @@ export class PiperRuntime {
     return this.warmupPromise;
   }
 
-  public synthesize(text: string, voiceId: string, rate = 1): Promise<PiperSynthesizeResult> {
+  public synthesize(text: string, voiceId: string, _rate = 1): Promise<PiperSynthesizeResult> {
     const trimmed = text.trim();
     if (!trimmed) {
       return Promise.reject(new Error('Cannot synthesize empty text.'));
     }
 
-    const safeRate = normalizeRate(rate);
-    const cacheKey = `${voiceId}::${safeRate}::${trimmed}`;
+    // Cache key is rate-independent: playback speed is handled pitch-preservingly on the player
+    // so live speed changes never invalidate prefetches, stall the queue, or distort voice timbre.
+    const cacheKey = `${voiceId}::${trimmed}`;
     const cached = this.audioCache.get(cacheKey);
     if (cached) {
       // Refresh LRU ordering.
@@ -152,7 +146,7 @@ export class PiperRuntime {
       if (requestGen !== this.generation) {
         throw new Error('Neural synthesis cancelled.');
       }
-      const result = await this.runSynthesis(trimmed, voiceId, safeRate, requestGen);
+      const result = await this.runSynthesis(trimmed, voiceId, requestGen);
       this.rememberAudio(cacheKey, result);
       return result;
     });
@@ -283,7 +277,6 @@ export class PiperRuntime {
   private async runSynthesis(
     trimmed: string,
     voiceId: string,
-    rate: number,
     requestGen: number
   ): Promise<PiperSynthesizeResult> {
     await this.ensureVoiceLoaded(voiceId);
@@ -304,7 +297,7 @@ export class PiperRuntime {
     const { noise_scale, length_scale, noise_w } = this.modelConfig.inference;
     const effectiveLengthScale = Math.min(
       MAX_LENGTH_SCALE,
-      Math.max(MIN_LENGTH_SCALE, (length_scale * BASE_CADENCE_SCALE) / rate)
+      Math.max(MIN_LENGTH_SCALE, length_scale * BASE_CADENCE_SCALE)
     );
 
     const inputData = BigInt64Array.from(phonemeIds.map((id) => BigInt(id)));

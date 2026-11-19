@@ -136,7 +136,127 @@ describe('PiperNeuralEngine', () => {
     engine.dispose();
   });
 
-  it('plays, pauses, resumes, updates playbackRate live, and stops via Web Audio API', async () => {
+  it('uses pitch-preserving HTMLAudioElement by default and keeps prefetches valid across live speed changes', async () => {
+    const createdAudios: Array<{
+      preservesPitch: boolean;
+      playbackRate: number;
+      defaultPlaybackRate: number;
+      paused: boolean;
+      src: string;
+      onended: (() => void) | null;
+      onerror: (() => void) | null;
+      play: ReturnType<typeof vi.fn>;
+      pause: ReturnType<typeof vi.fn>;
+    }> = [];
+
+    const origAudio = window.Audio;
+    const revokeSpy = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
+    const createUrlSpy = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:echoselect-mock');
+
+    class FakeHtmlAudio {
+      public preservesPitch = false;
+      public mozPreservesPitch = false;
+      public webkitPreservesPitch = false;
+      public playbackRate = 1;
+      public defaultPlaybackRate = 1;
+      public paused = true;
+      public src: string;
+      public onended: (() => void) | null = null;
+      public onerror: (() => void) | null = null;
+      public play = vi.fn(async () => {
+        this.paused = false;
+      });
+      public pause = vi.fn(() => {
+        this.paused = true;
+      });
+      public constructor(src: string) {
+        this.src = src;
+        createdAudios.push(this);
+      }
+    }
+
+    Object.defineProperty(window, 'Audio', { configurable: true, value: FakeHtmlAudio });
+
+    try {
+      const transport = vi.fn().mockResolvedValue({
+        mimeType: 'audio/wav',
+        audioBase64: 'UklGRg==',
+      });
+      const cancelTransport = vi.fn();
+      const engine = new PiperNeuralEngine(transport, undefined, cancelTransport);
+
+      // Prefetch chunk 1 at rate 1x, then change speed mid-playback to 1.5x -> chunk 1 still hits cache!
+      const p1 = engine.speak('Primera frase', { lang: 'es', rate: 1 });
+      engine.prefetch('Segunda frase', { lang: 'es', rate: 1 });
+      await new Promise((r) => setTimeout(r, 10));
+
+      const audio1 = createdAudios[0]!;
+      expect(audio1.preservesPitch).toBe(true);
+      expect(audio1.playbackRate).toBe(1);
+
+      // Live speed changes update playbackRate immediately with preservesPitch=true
+      engine.setPlaybackRate(1.5);
+      expect(audio1.playbackRate).toBe(1.5);
+      expect(audio1.preservesPitch).toBe(true);
+
+      engine.setPlaybackRate(2);
+      expect(audio1.playbackRate).toBe(2);
+
+      engine.pause();
+      expect(audio1.pause).toHaveBeenCalledOnce();
+      engine.resume();
+      expect(audio1.play).toHaveBeenCalledTimes(2);
+
+      audio1.onended?.();
+      await expect(p1).resolves.toBeUndefined();
+      expect(revokeSpy).toHaveBeenCalledWith('blob:echoselect-mock');
+
+      // Second chunk at 2x reuses prefetched audio (transport called only 2 times total, not 3!)
+      const p2 = engine.speak('Segunda frase', { lang: 'es', rate: 2 });
+      await new Promise((r) => setTimeout(r, 10));
+      expect(transport).toHaveBeenCalledTimes(2);
+      expect(createdAudios[1]!.playbackRate).toBe(2);
+      expect(createdAudios[1]!.preservesPitch).toBe(true);
+
+      engine.stop();
+      await expect(p2).rejects.toMatchObject({ code: 'ABORTED' });
+      expect(cancelTransport).toHaveBeenCalledOnce();
+
+      // Media playback error mid-stream surfaces SYNTHESIS_FAILED cleanly
+      const p3 = engine.speak('Tercera frase', { lang: 'es', rate: 1 });
+      await new Promise((r) => setTimeout(r, 10));
+      createdAudios[2]!.onerror?.();
+      await expect(p3).rejects.toMatchObject({ code: 'SYNTHESIS_FAILED' });
+
+      // Abort signal mid-playback cancels HTMLAudioElement cleanly
+      const ctrl = new AbortController();
+      const p4 = engine.speak('Cuarta frase', { lang: 'es', rate: 1, signal: ctrl.signal });
+      await new Promise((r) => setTimeout(r, 10));
+      ctrl.abort();
+      await expect(p4).rejects.toMatchObject({ code: 'ABORTED' });
+
+      engine.dispose();
+    } finally {
+      Object.defineProperty(window, 'Audio', { configurable: true, value: origAudio });
+      revokeSpy.mockRestore();
+      createUrlSpy.mockRestore();
+    }
+  });
+
+  it('falls back seamlessly to persistent Web Audio API when HTMLAudioElement is blocked by CSP', async () => {
+    const origAudio = window.Audio;
+    // Simulate a strict CSP page where HTMLAudioElement.play() rejects
+    class BlockedHtmlAudio {
+      public play = vi.fn().mockRejectedValue(new Error('CSP media-src blocked'));
+      public pause = vi.fn();
+      public src = '';
+      public onended: (() => void) | null = null;
+      public onerror: (() => void) | null = null;
+    }
+    Object.defineProperty(window, 'Audio', { configurable: true, value: BlockedHtmlAudio });
+    const createUrlSpy = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:blocked');
+    const revokeSpy = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
+
     const hooks: { onEnded: (() => void) | null } = { onEnded: null };
     const stopNode = vi.fn(() => hooks.onEnded?.());
     const startNode = vi.fn();
@@ -175,65 +295,73 @@ describe('PiperNeuralEngine', () => {
       value: audioCtxCtor,
     });
 
-    const transport = vi.fn().mockResolvedValue({
-      mimeType: 'audio/wav',
-      audioBase64: 'UklGRg==',
-    });
-    const engine = new PiperNeuralEngine(transport);
+    try {
+      const transport = vi.fn().mockResolvedValue({
+        mimeType: 'audio/wav',
+        audioBase64: 'UklGRg==',
+      });
+      const engine = new PiperNeuralEngine(transport);
 
-    const p = engine.speak('Prueba Web Audio', { lang: 'es', rate: 1 });
-    await new Promise((r) => setTimeout(r, 10));
-    expect(startNode).toHaveBeenCalledOnce();
+      const p = engine.speak('Prueba Web Audio', { lang: 'es', rate: 1 });
+      await new Promise((r) => setTimeout(r, 15));
+      expect(startNode).toHaveBeenCalledOnce();
 
-    // Prefetch while AudioContext is active pre-decodes WAV for gapless handoff
-    engine.prefetch('Siguiente frase', { lang: 'es', rate: 1 });
-    await new Promise((r) => setTimeout(r, 10));
-    expect(fakeCtx.decodeAudioData).toHaveBeenCalledTimes(2);
+      // Prefetch while AudioContext fallback is active pre-decodes WAV for gapless handoff
+      engine.prefetch('Siguiente frase', { lang: 'es', rate: 1 });
+      await new Promise((r) => setTimeout(r, 15));
+      expect(fakeCtx.decodeAudioData).toHaveBeenCalledTimes(2);
 
-    engine.pause();
-    expect(suspendCtx).toHaveBeenCalledOnce();
+      engine.pause();
+      expect(suspendCtx).toHaveBeenCalledOnce();
 
-    engine.resume();
-    expect(resumeCtx).toHaveBeenCalledOnce();
+      engine.resume();
+      expect(resumeCtx).toHaveBeenCalledOnce();
 
-    engine.setPlaybackRate(1.25);
-    expect(playbackRate.value).toBe(1.25);
+      engine.setPlaybackRate(1.25);
+      expect(playbackRate.value).toBe(1.25);
 
-    hooks.onEnded?.();
-    await expect(p).resolves.toBeUndefined();
-    // Persistent AudioContext stays open between segments (no close/reopen gap!)
-    expect(closeCtx).not.toHaveBeenCalled();
+      hooks.onEnded?.();
+      await expect(p).resolves.toBeUndefined();
+      // Persistent AudioContext stays open between segments (no close/reopen gap!)
+      expect(closeCtx).not.toHaveBeenCalled();
 
-    // Second segment reuses the same AudioContext and uses pre-decoded buffer without re-decoding
-    const pPrefetched = engine.speak('Siguiente frase', { lang: 'es', rate: 1 });
-    await new Promise((r) => setTimeout(r, 10));
-    expect(audioCtxCtor).toHaveBeenCalledTimes(1);
-    expect(fakeCtx.decodeAudioData).toHaveBeenCalledTimes(2);
-    hooks.onEnded?.();
-    await expect(pPrefetched).resolves.toBeUndefined();
+      // Second segment reuses the same AudioContext and uses pre-decoded buffer without re-decoding
+      const pPrefetched = engine.speak('Siguiente frase', { lang: 'es', rate: 1.25 });
+      await new Promise((r) => setTimeout(r, 15));
+      expect(audioCtxCtor).toHaveBeenCalledTimes(1);
+      expect(fakeCtx.decodeAudioData).toHaveBeenCalledTimes(2);
+      hooks.onEnded?.();
+      await expect(pPrefetched).resolves.toBeUndefined();
 
-    // Stop mid-playback cancels cleanly with ABORTED
-    const p2 = engine.speak('Segunda prueba', { lang: 'es', rate: 1 });
-    await new Promise((r) => setTimeout(r, 10));
-    engine.stop();
-    await expect(p2).rejects.toMatchObject({ code: 'ABORTED' });
+      // Stop mid-playback cancels cleanly with ABORTED
+      const p2 = engine.speak('Segunda prueba', { lang: 'es', rate: 1 });
+      await new Promise((r) => setTimeout(r, 15));
+      engine.stop();
+      await expect(p2).rejects.toMatchObject({ code: 'ABORTED' });
 
-    // Decode error surfaces SYNTHESIS_FAILED
-    fakeCtx.decodeAudioData.mockRejectedValueOnce(new Error('bad wav'));
-    await expect(engine.speak('Corrupto', { lang: 'es', rate: 1 })).rejects.toMatchObject({
-      code: 'SYNTHESIS_FAILED',
-    });
+      // Decode error surfaces SYNTHESIS_FAILED
+      fakeCtx.decodeAudioData.mockRejectedValueOnce(new Error('bad wav'));
+      await expect(engine.speak('Corrupto', { lang: 'es', rate: 1 })).rejects.toMatchObject({
+        code: 'SYNTHESIS_FAILED',
+      });
 
-    // Dispose closes the persistent AudioContext cleanly
-    engine.dispose();
-    expect(closeCtx).toHaveBeenCalledOnce();
+      // Dispose closes the persistent AudioContext cleanly
+      engine.dispose();
+      expect(closeCtx).toHaveBeenCalledOnce();
 
-    // Missing AudioContext surfaces ENGINE_UNAVAILABLE
-    Object.defineProperty(window, 'AudioContext', { configurable: true, value: undefined });
-    const engineNoAudio = new PiperNeuralEngine(transport);
-    await expect(engineNoAudio.speak('Sin audio', { lang: 'es', rate: 1 })).rejects.toMatchObject({
-      code: 'ENGINE_UNAVAILABLE',
-    });
+      // Missing AudioContext surfaces ENGINE_UNAVAILABLE
+      Object.defineProperty(window, 'AudioContext', { configurable: true, value: undefined });
+      const engineNoAudio = new PiperNeuralEngine(transport);
+      await expect(engineNoAudio.speak('Sin audio', { lang: 'es', rate: 1 })).rejects.toMatchObject(
+        {
+          code: 'ENGINE_UNAVAILABLE',
+        }
+      );
+    } finally {
+      Object.defineProperty(window, 'Audio', { configurable: true, value: origAudio });
+      createUrlSpy.mockRestore();
+      revokeSpy.mockRestore();
+    }
   });
 });
 

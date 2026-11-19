@@ -168,19 +168,23 @@ describe('PiperRuntime', () => {
     expect(phonemizeFactoryMock).toHaveBeenCalledTimes(2);
   });
 
-  it('scales length_scale natively by rate and cancels queued synthesis via cancelPending', async () => {
+  it('keeps natural voice length_scale stable across speeds and cancels queued synthesis via cancelPending', async () => {
     const runtime = new PiperRuntime({
       ortWasmDir: 'ext://wasm/',
       piperWasm: 'ext://wasm/piper_phonemize.wasm',
       piperData: 'ext://wasm/piper_phonemize.data',
     });
 
-    await runtime.synthesize('Velocidad rápida', 'es_MX-claude-high', 1.5);
+    await runtime.synthesize('Velocidad estable', 'es_MX-claude-high', 1.5);
     const firstCallFeeds = runMock.mock.calls[0]?.[0] as {
       scales: { data: Float32Array };
     };
-    // 1.0 * 0.88 / 1.5 ≈ 0.5867
-    expect(firstCallFeeds.scales.data[1]).toBeCloseTo(0.88 / 1.5, 3);
+    // Fixed natural cadence (1.0 * 0.90 = 0.90) keeps identical voice timbre across all speeds
+    expect(firstCallFeeds.scales.data[1]).toBeCloseTo(0.9, 3);
+
+    // Requesting the same text at a different rate hits LRU cache immediately (zero re-synthesis!)
+    await runtime.synthesize('Velocidad estable', 'es_MX-claude-high', 2);
+    expect(runMock).toHaveBeenCalledTimes(1);
 
     // Block first task once it enters ONNX run(), while second task is queued, then call cancelPending()
     let releaseSlow!: () => void;

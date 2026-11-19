@@ -271,7 +271,13 @@ export class EchoSelectContentApp {
       },
       onPrev: () => this.ttsManager?.prev(),
       onNext: () => this.ttsManager?.next(),
-      onRateChange: (rate) => this.ttsManager?.setRate(rate),
+      onRateChange: (rate) => {
+        this.settings = { ...this.settings, defaultRate: rate };
+        this.ttsManager?.setRate(rate);
+        void getExtensionStorage()
+          .updateSettings({ defaultRate: rate })
+          .catch(() => undefined);
+      },
     });
 
     this.unsubTts = this.ttsManager.subscribe((state) => {

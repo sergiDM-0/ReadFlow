@@ -44,14 +44,16 @@ interface PreparedNeuralAudio {
 }
 
 const MAX_PREFETCH_ENTRIES = 4;
+const HTML_AUDIO_UNSUPPORTED_ERR = 'HTML_AUDIO_BLOCKED';
 
-function decodeBase64ToArrayBuffer(base64: string): ArrayBuffer {
+function decodeBase64ToUint8Array(base64: string): Uint8Array<ArrayBuffer> {
   const binary = atob(base64);
-  const bytes = new Uint8Array(binary.length);
+  const buffer = new ArrayBuffer(binary.length);
+  const bytes = new Uint8Array(buffer);
   for (let i = 0; i < binary.length; i += 1) {
     bytes[i] = binary.charCodeAt(i);
   }
-  return bytes.buffer;
+  return bytes;
 }
 
 function getAudioContextCtor(): typeof AudioContext | undefined {
@@ -62,6 +64,172 @@ function getAudioContextCtor(): typeof AudioContext | undefined {
     window.AudioContext ??
     (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
   );
+}
+
+function canUseHtmlAudio(): boolean {
+  return (
+    typeof window !== 'undefined' &&
+    typeof window.Audio === 'function' &&
+    typeof URL !== 'undefined' &&
+    typeof URL.createObjectURL === 'function'
+  );
+}
+
+function applyPitchPreservingRate(audio: HTMLAudioElement, rate: PlaybackRate): void {
+  const extended = audio as HTMLAudioElement & {
+    preservesPitch?: boolean;
+    mozPreservesPitch?: boolean;
+    webkitPreservesPitch?: boolean;
+  };
+  extended.preservesPitch = true;
+  extended.mozPreservesPitch = true;
+  extended.webkitPreservesPitch = true;
+  audio.defaultPlaybackRate = rate;
+  audio.playbackRate = rate;
+}
+
+function createHtmlAudioPlayer(
+  audioBase64: string,
+  initialRate: PlaybackRate,
+  signal?: AbortSignal
+): AudioPlaybackHandle {
+  let audio: HTMLAudioElement | null = null;
+  let blobUrl: string | null = null;
+  let settled = false;
+  let stopped = false;
+  let started = false;
+  let currentRate = initialRate;
+  let rejectFn: ((err: unknown) => void) | null = null;
+
+  const cleanup = () => {
+    if (audio) {
+      audio.onended = null;
+      audio.onerror = null;
+      try {
+        audio.pause();
+        audio.src = '';
+      } catch {
+        // Ignore teardown errors on detached media element.
+      }
+      audio = null;
+    }
+    if (blobUrl) {
+      try {
+        URL.revokeObjectURL(blobUrl);
+      } catch {
+        // Ignore revoke errors in synthetic environments.
+      }
+      blobUrl = null;
+    }
+  };
+
+  const abortNow = () => {
+    stopped = true;
+    cleanup();
+    if (!settled && rejectFn) {
+      settled = true;
+      rejectFn(new TTSError('ABORTED', 'Neural playback cancelled.'));
+    }
+  };
+
+  return {
+    play(): Promise<void> {
+      if (signal?.aborted || stopped) {
+        return Promise.reject(new TTSError('ABORTED', 'Neural playback aborted.'));
+      }
+      if (!canUseHtmlAudio()) {
+        return Promise.reject(new Error(HTML_AUDIO_UNSUPPORTED_ERR));
+      }
+
+      return new Promise<void>((resolve, reject) => {
+        rejectFn = reject;
+        const onAbort = () => abortNow();
+        signal?.addEventListener('abort', onAbort, { once: true });
+
+        const finish = (err?: unknown) => {
+          signal?.removeEventListener('abort', onAbort);
+          if (settled) return;
+          settled = true;
+          cleanup();
+          if (err) {
+            reject(err);
+          } else {
+            resolve();
+          }
+        };
+
+        try {
+          const bytes = decodeBase64ToUint8Array(audioBase64);
+          blobUrl = URL.createObjectURL(new Blob([bytes], { type: 'audio/wav' }));
+          audio = new window.Audio(blobUrl);
+          applyPitchPreservingRate(audio, currentRate);
+
+          audio.onended = () => finish();
+          audio.onerror = () => {
+            if (!started) {
+              finish(new Error(HTML_AUDIO_UNSUPPORTED_ERR));
+            } else {
+              finish(new TTSError('SYNTHESIS_FAILED', 'Neural audio playback error.'));
+            }
+          };
+
+          const playResult = audio.play();
+          if (playResult && typeof playResult.then === 'function') {
+            playResult
+              .then(() => {
+                if (signal?.aborted || stopped) {
+                  finish(new TTSError('ABORTED', 'Neural playback cancelled.'));
+                  return;
+                }
+                started = true;
+                if (audio) {
+                  applyPitchPreservingRate(audio, currentRate);
+                }
+              })
+              .catch(() => {
+                finish(new Error(HTML_AUDIO_UNSUPPORTED_ERR));
+              });
+          } else {
+            started = true;
+          }
+        } catch {
+          finish(new Error(HTML_AUDIO_UNSUPPORTED_ERR));
+        }
+      });
+    },
+
+    pause(): void {
+      if (audio && !audio.paused) {
+        try {
+          audio.pause();
+        } catch {
+          // Ignore pause errors.
+        }
+      }
+    },
+
+    resume(): void {
+      if (audio && audio.paused && !stopped) {
+        applyPitchPreservingRate(audio, currentRate);
+        void audio.play().catch(() => undefined);
+      }
+    },
+
+    stop(): void {
+      abortNow();
+    },
+
+    setRate(rate: PlaybackRate): void {
+      currentRate = rate;
+      if (audio) {
+        try {
+          applyPitchPreservingRate(audio, rate);
+        } catch {
+          // Ignore out-of-range rate errors in synthetic DOM.
+        }
+      }
+    },
+  };
 }
 
 class SharedWebAudioPool {
@@ -84,7 +252,7 @@ class SharedWebAudioPool {
       return undefined;
     }
     try {
-      const rawBuffer = decodeBase64ToArrayBuffer(audioBase64);
+      const rawBuffer = decodeBase64ToUint8Array(audioBase64).buffer;
       return await ctx.decodeAudioData(rawBuffer.slice(0));
     } catch {
       return undefined;
@@ -95,14 +263,13 @@ class SharedWebAudioPool {
     audioBase64: string,
     initialRate: PlaybackRate,
     signal?: AbortSignal,
-    preDecodedBuffer?: AudioBuffer,
-    synthesizedRate: PlaybackRate = initialRate
+    preDecodedBuffer?: AudioBuffer
   ): AudioPlaybackHandle {
     let source: AudioBufferSourceNode | null = null;
     let activeCtx: AudioContext | null = null;
     let settled = false;
     let stopped = false;
-    let currentPlaybackFactor = initialRate / synthesizedRate;
+    let currentRate = initialRate;
     let rejectFn: ((err: unknown) => void) | null = null;
 
     const cleanupSource = () => {
@@ -166,7 +333,7 @@ class SharedWebAudioPool {
             try {
               const decoded =
                 preDecodedBuffer ??
-                (await ctx.decodeAudioData(decodeBase64ToArrayBuffer(audioBase64).slice(0)));
+                (await ctx.decodeAudioData(decodeBase64ToUint8Array(audioBase64).buffer.slice(0)));
 
               if (signal?.aborted || stopped || ctx.state === 'closed') {
                 finish(new TTSError('ABORTED', 'Neural playback cancelled.'));
@@ -175,7 +342,7 @@ class SharedWebAudioPool {
 
               source = ctx.createBufferSource();
               source.buffer = decoded;
-              source.playbackRate.value = currentPlaybackFactor;
+              source.playbackRate.value = currentRate;
               source.connect(ctx.destination);
               source.onended = () => finish();
 
@@ -211,9 +378,9 @@ class SharedWebAudioPool {
       },
 
       setRate(rate: PlaybackRate): void {
-        currentPlaybackFactor = rate / synthesizedRate;
+        currentRate = rate;
         if (source) {
-          source.playbackRate.value = currentPlaybackFactor;
+          source.playbackRate.value = rate;
         }
       },
     };
@@ -243,6 +410,8 @@ export class PiperNeuralEngine implements TTSEngineInterface {
   private readonly audioPool = new SharedWebAudioPool();
   private readonly prefetchCache = new Map<string, Promise<PreparedNeuralAudio>>();
   private activePlayer: AudioPlaybackHandle | null = null;
+  private currentRate: PlaybackRate = 1;
+  private preferWebAudio = false;
 
   public constructor(
     transport: NeuralTransport,
@@ -266,7 +435,8 @@ export class PiperNeuralEngine implements TTSEngineInterface {
     const trimmed = text.trim();
     if (!trimmed) return;
     const voiceId = options.voiceId || resolvePiperVoiceForLang(options.lang, {}).id;
-    const key = `${voiceId}::${options.rate}::${trimmed}`;
+    // Rate-independent prefetch key: changing speed never invalidates pre-synthesized chunks.
+    const key = `${voiceId}::${trimmed}`;
     if (this.prefetchCache.has(key)) return;
 
     if (this.prefetchCache.size >= MAX_PREFETCH_ENTRIES) {
@@ -278,12 +448,12 @@ export class PiperNeuralEngine implements TTSEngineInterface {
       text: trimmed,
       lang: options.lang,
       voiceId,
-      rate: options.rate,
+      rate: 1,
     }).then(async (response) => {
-      // Pre-decode WAV into AudioBuffer while previous chunk is still speaking for gapless handoff.
-      const decodedBuffer = this.customPlayerFactory
-        ? undefined
-        : await this.audioPool.tryPreDecode(response.audioBase64);
+      const decodedBuffer =
+        !this.customPlayerFactory && this.preferWebAudio
+          ? await this.audioPool.tryPreDecode(response.audioBase64)
+          : undefined;
       return { response, decodedBuffer };
     });
 
@@ -300,7 +470,8 @@ export class PiperNeuralEngine implements TTSEngineInterface {
 
     const trimmed = text.trim();
     const voiceId = options.voiceId || resolvePiperVoiceForLang(options.lang, {}).id;
-    const cacheKey = `${voiceId}::${options.rate}::${trimmed}`;
+    const cacheKey = `${voiceId}::${trimmed}`;
+    this.currentRate = options.rate;
 
     options.onProgress?.('Preparando voz neuronal...');
 
@@ -308,12 +479,11 @@ export class PiperNeuralEngine implements TTSEngineInterface {
     if (preparedPromise) {
       this.prefetchCache.delete(cacheKey);
     } else {
-      // Start synthesis synchronously before first await so chunk 0 always leads lookahead prefetches.
       preparedPromise = this.transport({
         text: trimmed,
         lang: options.lang,
         voiceId,
-        rate: options.rate,
+        rate: 1,
       }).then((response) => ({ response }));
     }
 
@@ -323,32 +493,54 @@ export class PiperNeuralEngine implements TTSEngineInterface {
       throw new TTSError('ABORTED', 'Neural playback cancelled.');
     }
 
-    const player = this.customPlayerFactory
-      ? this.customPlayerFactory(
-          prepared.response.audioBase64,
-          options.rate,
-          options.signal,
-          prepared.decodedBuffer
-        )
-      : this.audioPool.createPlayer(
-          prepared.response.audioBase64,
-          options.rate,
-          options.signal,
-          prepared.decodedBuffer
-        );
+    const effectiveRate = this.currentRate;
 
-    this.activePlayer = player;
-    options.onPlaying?.();
-    try {
-      await player.play();
-    } finally {
-      if (this.activePlayer === player) {
-        this.activePlayer = null;
+    if (this.customPlayerFactory) {
+      const player = this.customPlayerFactory(
+        prepared.response.audioBase64,
+        effectiveRate,
+        options.signal,
+        prepared.decodedBuffer
+      );
+      await this.runPlayer(player, options.onPlaying);
+      return;
+    }
+
+    // Prefer HTMLAudioElement with preservesPitch=true so speed changes keep the exact natural voice.
+    // Automatically fall back to persistent Web Audio API if a host page's CSP blocks blob: media.
+    if (!this.preferWebAudio && canUseHtmlAudio()) {
+      const htmlPlayer = createHtmlAudioPlayer(
+        prepared.response.audioBase64,
+        effectiveRate,
+        options.signal
+      );
+      try {
+        await this.runPlayer(htmlPlayer, options.onPlaying);
+        return;
+      } catch (err) {
+        if (err instanceof Error && err.message === HTML_AUDIO_UNSUPPORTED_ERR) {
+          this.preferWebAudio = true;
+        } else {
+          throw err;
+        }
       }
     }
+
+    if (options.signal?.aborted) {
+      throw new TTSError('ABORTED', 'Neural playback cancelled.');
+    }
+
+    const webAudioPlayer = this.audioPool.createPlayer(
+      prepared.response.audioBase64,
+      this.currentRate,
+      options.signal,
+      prepared.decodedBuffer
+    );
+    await this.runPlayer(webAudioPlayer, options.onPlaying);
   }
 
   public setPlaybackRate(rate: PlaybackRate): void {
+    this.currentRate = rate;
     this.activePlayer?.setRate(rate);
   }
 
@@ -370,5 +562,17 @@ export class PiperNeuralEngine implements TTSEngineInterface {
   public dispose(): void {
     this.stop();
     this.audioPool.dispose();
+  }
+
+  private async runPlayer(player: AudioPlaybackHandle, onPlaying?: () => void): Promise<void> {
+    this.activePlayer = player;
+    onPlaying?.();
+    try {
+      await player.play();
+    } finally {
+      if (this.activePlayer === player) {
+        this.activePlayer = null;
+      }
+    }
   }
 }

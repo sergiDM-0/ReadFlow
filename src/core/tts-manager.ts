@@ -225,16 +225,14 @@ export class TTSManager {
       return;
     }
 
-    const wasPlaying = this.state.status === 'playing';
+    const isActive = this.state.status === 'playing' || this.state.status === 'loading';
     const currentIndex = this.state.currentIndex;
     this.setState({ ...this.state, rate });
 
-    if (wasPlaying) {
-      if (this.engine.capabilities.supportsLiveRateChange && this.engine.setPlaybackRate) {
-        this.engine.setPlaybackRate(rate);
-      } else {
-        this.jumpTo(currentIndex);
-      }
+    if (this.engine.capabilities.supportsLiveRateChange && this.engine.setPlaybackRate) {
+      this.engine.setPlaybackRate(rate);
+    } else if (isActive) {
+      this.jumpTo(currentIndex);
     }
   }
 
@@ -261,10 +259,17 @@ export class TTSManager {
   }
 
   private jumpTo(index: number): void {
-    if (this.state.status !== 'playing' && this.state.status !== 'paused') {
+    if (
+      this.state.status !== 'playing' &&
+      this.state.status !== 'loading' &&
+      this.state.status !== 'paused'
+    ) {
       return;
     }
     this.cancelCurrentUtterance();
+    if (!this.engine.capabilities.supportsLiveRateChange) {
+      this.engine.stop();
+    }
     this.setState({
       ...this.state,
       status: 'playing',

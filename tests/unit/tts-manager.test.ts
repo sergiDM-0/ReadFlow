@@ -228,8 +228,13 @@ describe('TTSManager', () => {
     });
     await Promise.resolve();
     expect(callOrder).toEqual(['speak:Uno.', 'prefetch:Dos.', 'prefetch:Tres.']);
+    // Speed change while playing and while paused both forward cleanly to live-rate engine
     liveMgr.setRate(1.5);
     expect(setPlaybackRate).toHaveBeenCalledWith(1.5);
+    liveMgr.pause();
+    liveMgr.setRate(2);
+    expect(setPlaybackRate).toHaveBeenCalledWith(2);
+    liveMgr.resume();
     liveDeferred.resolve();
     liveMgr.stop();
 
