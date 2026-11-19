@@ -6,9 +6,36 @@ import { DEFAULT_SETTINGS } from '../../src/shared/types';
 function createPopupDom(): HTMLElement {
   const root = document.createElement('div');
   const htmlParts = [
+    ['span', { id: 'brand-icon-slot' }],
+    ['span', { id: 'preview-dock-icon' }],
     ['input', { id: 'toggle-enabled', type: 'checkbox' }],
     ['input', { id: 'toggle-domain-block', type: 'checkbox' }],
     ['span', { id: 'current-domain' }],
+    ['textarea', { id: 'quick-read-input' }],
+    ['button', { id: 'btn-quick-read', type: 'button' }],
+    ['button', { id: 'btn-quick-stop', type: 'button' }],
+    ['div', { id: 'quick-feedback' }],
+    ['button', { id: 'tab-general', role: 'tab', 'data-tab': 'general', 'aria-selected': 'true' }],
+    [
+      'button',
+      { id: 'tab-appearance', role: 'tab', 'data-tab': 'appearance', 'aria-selected': 'false' },
+    ],
+    [
+      'button',
+      { id: 'tab-advanced', role: 'tab', 'data-tab': 'advanced', 'aria-selected': 'false' },
+    ],
+    ['section', { id: 'panel-general', role: 'tabpanel', 'data-panel': 'general' }],
+    ['section', { id: 'panel-appearance', role: 'tabpanel', 'data-panel': 'appearance' }],
+    ['section', { id: 'panel-advanced', role: 'tabpanel', 'data-panel': 'advanced' }],
+    ['div', { id: 'color-presets' }],
+    ['input', { id: 'input-icon-bg', type: 'color', value: '#2563eb' }],
+    ['input', { id: 'input-icon-fg', type: 'color', value: '#ffffff' }],
+    ['input', { id: 'input-accent-color', type: 'color', value: '#1d4ed8' }],
+    ['span', { id: 'hex-icon-bg' }],
+    ['span', { id: 'hex-icon-fg' }],
+    ['span', { id: 'hex-accent-color' }],
+    ['select', { id: 'select-theme' }],
+    ['button', { id: 'btn-reset-appearance', type: 'button' }],
     ['select', { id: 'select-rate' }],
     ['select', { id: 'select-engine' }],
     ['select', { id: 'select-voice-es' }],
@@ -38,6 +65,20 @@ function createPopupDom(): HTMLElement {
     opt.value = r;
     opt.textContent = `${r}x`;
     rateSelect.appendChild(opt);
+
+    const pill = document.createElement('button');
+    pill.type = 'button';
+    pill.className = 'rate-pill';
+    pill.setAttribute('data-rate', r);
+    pill.textContent = `${r}x`;
+    root.appendChild(pill);
+  }
+
+  const themeSelect = root.querySelector('#select-theme')!;
+  for (const t of ['auto', 'light', 'dark']) {
+    const opt = document.createElement('option');
+    opt.value = t;
+    themeSelect.appendChild(opt);
   }
 
   const engineSelect = root.querySelector('#select-engine')!;
@@ -77,6 +118,9 @@ describe('popup controller', () => {
       .fn()
       .mockResolvedValueOnce(false)
       .mockResolvedValueOnce(true);
+    const triggerQuickRead = vi.fn().mockResolvedValueOnce(true).mockResolvedValueOnce(false);
+    const stopActiveTabPlayback = vi.fn().mockResolvedValue(undefined);
+    const warmupNeuralVoice = vi.fn();
 
     await initPopup({
       root: document,
@@ -101,9 +145,74 @@ describe('popup controller', () => {
         },
       ]),
       requestOriginPermission,
+      warmupNeuralVoice,
+      triggerQuickRead,
+      stopActiveTabPlayback,
     });
 
     expect(document.querySelector('#current-domain')?.textContent).toBe('news.example.com');
+    expect(document.querySelector('#brand-icon-slot svg')).not.toBeNull();
+    expect(document.querySelector('#preview-dock-icon svg')).not.toBeNull();
+
+    // Quick-read box (Reverso style) reads explicit text and stops active tab playback
+    const quickInput = document.querySelector('#quick-read-input') as HTMLTextAreaElement;
+    const quickReadBtn = document.querySelector('#btn-quick-read') as HTMLButtonElement;
+    const quickStopBtn = document.querySelector('#btn-quick-stop') as HTMLButtonElement;
+    quickInput.value = 'Lectura rápida desde el panel del dock.';
+    quickReadBtn.click();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(triggerQuickRead).toHaveBeenCalledWith('Lectura rápida desde el panel del dock.');
+    expect(document.querySelector('#quick-feedback')?.getAttribute('data-state')).toBe('ok');
+
+    quickInput.value = '';
+    quickReadBtn.click();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(document.querySelector('#quick-feedback')?.getAttribute('data-state')).toBe('error');
+
+    quickStopBtn.click();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(stopActiveTabPlayback).toHaveBeenCalledOnce();
+
+    // Tab switching works cleanly
+    (document.querySelector('#tab-appearance') as HTMLButtonElement).click();
+    expect((document.querySelector('#panel-appearance') as HTMLElement).hidden).toBe(false);
+    expect((document.querySelector('#panel-general') as HTMLElement).hidden).toBe(true);
+
+    // Color preset + custom pickers + theme + reset update storage & live CSS custom properties
+    const emeraldPreset = document.querySelector('[data-preset-id="emerald"]') as HTMLButtonElement;
+    emeraldPreset.click();
+    await new Promise((r) => setTimeout(r, 10));
+    expect((await storage.getSettings()).appearance.iconBgColor).toBe('#059669');
+
+    const iconBgInput = document.querySelector('#input-icon-bg') as HTMLInputElement;
+    iconBgInput.value = '#7c3aed';
+    iconBgInput.dispatchEvent(new Event('input'));
+    const iconFgInput = document.querySelector('#input-icon-fg') as HTMLInputElement;
+    iconFgInput.value = '#fef08a';
+    iconFgInput.dispatchEvent(new Event('input'));
+    const accentInput = document.querySelector('#input-accent-color') as HTMLInputElement;
+    accentInput.value = '#6d28d9';
+    accentInput.dispatchEvent(new Event('input'));
+    const themeSel = document.querySelector('#select-theme') as HTMLSelectElement;
+    themeSel.value = 'dark';
+    themeSel.dispatchEvent(new Event('change'));
+    await new Promise((r) => setTimeout(r, 15));
+    expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
+    expect((await storage.getSettings()).appearance).toEqual({
+      iconBgColor: '#7c3aed',
+      iconFgColor: '#fef08a',
+      accentColor: '#6d28d9',
+    });
+
+    (document.querySelector('#btn-reset-appearance') as HTMLButtonElement).click();
+    await new Promise((r) => setTimeout(r, 10));
+    expect((await storage.getSettings()).appearance).toEqual(DEFAULT_SETTINGS.appearance);
+    expect((await storage.getSettings()).theme).toBe('auto');
+
+    // Rate pill updates playback speed directly
+    (document.querySelector('.rate-pill[data-rate="1.25"]') as HTMLButtonElement).click();
+    await new Promise((r) => setTimeout(r, 10));
+    expect((await storage.getSettings()).defaultRate).toBe(1.25);
 
     // Toggle domain block
     const blockCheckbox = document.querySelector('#toggle-domain-block') as HTMLInputElement;

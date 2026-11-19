@@ -1,13 +1,22 @@
 import browser from 'webextension-polyfill';
 import { WebSpeechEngine } from '../core/engines/web-speech.engine';
 import { getExtensionStorage } from '../shared/storage';
-import type { ExtensionMessage } from '../shared/types';
+import type { ExtensionMessage, MessageResult } from '../shared/types';
 import { initPopup } from './popup-controller';
 
-async function getActiveTabHost(): Promise<string> {
+async function getActiveTab(): Promise<browser.Tabs.Tab | undefined> {
   try {
     const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
-    if (!tab?.url) return '';
+    return tab;
+  } catch {
+    return undefined;
+  }
+}
+
+async function getActiveTabHost(): Promise<string> {
+  const tab = await getActiveTab();
+  if (!tab?.url) return '';
+  try {
     const parsed = new URL(tab.url);
     if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
       return '';
@@ -16,6 +25,28 @@ async function getActiveTabHost(): Promise<string> {
   } catch {
     return '';
   }
+}
+
+async function triggerQuickRead(text?: string): Promise<boolean> {
+  const tab = await getActiveTab();
+  if (tab?.id === undefined) {
+    return false;
+  }
+  const response = (await browser.tabs.sendMessage(tab.id, {
+    type: 'COMMAND_TOGGLE_READ',
+    payload: { source: 'popup', text },
+  } satisfies ExtensionMessage)) as MessageResult<{ readonly active: boolean }> | undefined;
+  return Boolean(response && response.ok && response.data.active);
+}
+
+async function stopActiveTabPlayback(): Promise<void> {
+  const tab = await getActiveTab();
+  if (tab?.id === undefined) {
+    return;
+  }
+  await browser.tabs
+    .sendMessage(tab.id, { type: 'COMMAND_STOP' } satisfies ExtensionMessage)
+    .catch(() => undefined);
 }
 
 async function requestOriginPermission(originPattern: string): Promise<boolean> {
@@ -48,6 +79,8 @@ async function bootstrap(): Promise<void> {
       getAvailableVoices: () => engine.getVoices(),
       requestOriginPermission,
       warmupNeuralVoice,
+      triggerQuickRead,
+      stopActiveTabPlayback,
     });
   } catch {
     // Prevent unhandled promise rejection if popup closes mid-bootstrap.

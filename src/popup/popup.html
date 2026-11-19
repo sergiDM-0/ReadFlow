@@ -8,97 +8,260 @@
   </head>
   <body>
     <header class="header">
-      <h1>EchoSelect TTS</h1>
-      <span class="badge">100% Local</span>
+      <div class="brand">
+        <span id="brand-icon-slot" class="brand-icon" aria-hidden="true"></span>
+        <div class="brand-copy">
+          <div class="brand-title-row">
+            <h1>EchoSelect TTS</h1>
+            <span class="badge">Local</span>
+          </div>
+          <span class="domain-subtitle" id="current-domain">...</span>
+        </div>
+      </div>
+      <label class="switch" title="Activar o desactivar EchoSelect">
+        <span class="sr-only">Extensión activa</span>
+        <input id="toggle-enabled" type="checkbox" />
+        <span class="switch-track" aria-hidden="true"></span>
+      </label>
     </header>
 
+    <section class="quick-bar" aria-label="Lectura rápida">
+      <textarea
+        id="quick-read-input"
+        class="quick-input"
+        rows="2"
+        placeholder="Escribe o pega texto para escuchar aquí, o deja vacío para leer tu selección..."
+        aria-label="Texto rápido para escuchar"
+      ></textarea>
+      <div class="quick-actions">
+        <button id="btn-quick-read" class="primary quick-btn" type="button">▶ Leer ahora</button>
+        <button id="btn-quick-stop" class="secondary quick-stop-btn" type="button">
+          ⏹ Detener
+        </button>
+      </div>
+      <div id="quick-feedback" class="feedback" role="status" aria-live="polite"></div>
+    </section>
+
+    <nav class="tabs" role="tablist" aria-label="Secciones de configuración">
+      <button
+        id="tab-general"
+        class="tab-btn"
+        type="button"
+        role="tab"
+        aria-selected="true"
+        aria-controls="panel-general"
+        data-tab="general"
+      >
+        General
+      </button>
+      <button
+        id="tab-appearance"
+        class="tab-btn"
+        type="button"
+        role="tab"
+        aria-selected="false"
+        aria-controls="panel-appearance"
+        data-tab="appearance"
+      >
+        Apariencia
+      </button>
+      <button
+        id="tab-advanced"
+        class="tab-btn"
+        type="button"
+        role="tab"
+        aria-selected="false"
+        aria-controls="panel-advanced"
+        data-tab="advanced"
+      >
+        Avanzado
+      </button>
+    </nav>
+
     <main>
-      <section class="card" aria-label="Estado general">
-        <div class="row">
-          <label for="toggle-enabled">Extensión activa</label>
-          <input id="toggle-enabled" type="checkbox" />
+      <section
+        id="panel-general"
+        class="tab-panel"
+        role="tabpanel"
+        aria-labelledby="tab-general"
+        data-panel="general"
+      >
+        <div class="card">
+          <div class="row">
+            <label for="toggle-autoread-selection">Auto-lectura al seleccionar</label>
+            <input id="toggle-autoread-selection" type="checkbox" />
+          </div>
+          <div class="row">
+            <label for="toggle-gemini-autoread">Auto-lectura en Gemini</label>
+            <input id="toggle-gemini-autoread" type="checkbox" />
+          </div>
+          <div class="row">
+            <label for="toggle-omit-code">Omitir bloques de código</label>
+            <input id="toggle-omit-code" type="checkbox" />
+          </div>
+          <div class="row">
+            <label for="toggle-domain-block">Desactivar en este sitio</label>
+            <input id="toggle-domain-block" type="checkbox" />
+          </div>
         </div>
-        <div class="row">
-          <label for="toggle-domain-block">
-            Desactivar en <strong id="current-domain">...</strong>
-          </label>
-          <input id="toggle-domain-block" type="checkbox" />
-        </div>
-        <div class="row">
-          <label for="toggle-omit-code">Omitir bloques de código</label>
-          <input id="toggle-omit-code" type="checkbox" />
-        </div>
-        <div class="row">
-          <label for="toggle-autoread-selection">Auto-lectura al seleccionar</label>
-          <input id="toggle-autoread-selection" type="checkbox" />
-        </div>
-        <div class="row">
-          <label for="toggle-gemini-autoread">Auto-lectura en Gemini</label>
-          <input id="toggle-gemini-autoread" type="checkbox" />
+
+        <div class="card">
+          <div class="field">
+            <label for="select-rate">Velocidad de lectura</label>
+            <div class="rate-pills" id="rate-pills" role="group" aria-label="Velocidad rápida">
+              <button type="button" class="rate-pill" data-rate="0.75">0.75x</button>
+              <button type="button" class="rate-pill" data-rate="1">1x</button>
+              <button type="button" class="rate-pill" data-rate="1.25">1.25x</button>
+              <button type="button" class="rate-pill" data-rate="1.5">1.5x</button>
+              <button type="button" class="rate-pill" data-rate="2">2x</button>
+            </div>
+            <select id="select-rate" class="sr-only" aria-label="Velocidad por defecto">
+              <option value="0.75">0.75x</option>
+              <option value="1">1x</option>
+              <option value="1.25">1.25x</option>
+              <option value="1.5">1.5x</option>
+              <option value="2">2x</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="select-voice-es">Voz preferida (Español)</label>
+            <select id="select-voice-es"></select>
+          </div>
+          <div class="field">
+            <label for="select-voice-en">Voz preferida (Inglés)</label>
+            <select id="select-voice-en"></select>
+          </div>
         </div>
       </section>
 
-      <section class="card" aria-label="Voz y velocidad">
-        <div class="field">
-          <label for="select-rate">Velocidad por defecto</label>
-          <select id="select-rate">
-            <option value="0.75">0.75x</option>
-            <option value="1">1x</option>
-            <option value="1.25">1.25x</option>
-            <option value="1.5">1.5x</option>
-            <option value="2">2x</option>
-          </select>
+      <section
+        id="panel-appearance"
+        class="tab-panel"
+        role="tabpanel"
+        aria-labelledby="tab-appearance"
+        data-panel="appearance"
+        hidden
+      >
+        <div class="card preview-card">
+          <div class="preview-header">
+            <span class="section-title">Vista previa del icono (Dock)</span>
+            <span class="hint-pill">Tiempo real</span>
+          </div>
+          <div class="preview-stage">
+            <div class="preview-item">
+              <span id="preview-dock-icon" class="preview-icon-box" aria-hidden="true"></span>
+              <span class="preview-caption">Barra / Dock</span>
+            </div>
+            <div class="preview-item">
+              <span class="preview-float-btn" aria-hidden="true">🔊</span>
+              <span class="preview-caption">Botón flotante</span>
+            </div>
+          </div>
         </div>
-        <div class="field">
-          <label for="select-voice-es">Voz preferida (Español)</label>
-          <select id="select-voice-es"></select>
-        </div>
-        <div class="field">
-          <label for="select-voice-en">Voz preferida (Inglés)</label>
-          <select id="select-voice-en"></select>
+
+        <div class="card">
+          <div class="field">
+            <span class="field-label">Paletas rápidas</span>
+            <div
+              id="color-presets"
+              class="preset-grid"
+              role="group"
+              aria-label="Paletas de color"
+            ></div>
+          </div>
+
+          <div class="color-row">
+            <label for="input-icon-bg">Fondo del icono</label>
+            <div class="color-picker-wrap">
+              <span id="hex-icon-bg" class="hex-code">#2563eb</span>
+              <input id="input-icon-bg" type="color" value="#2563eb" />
+            </div>
+          </div>
+          <div class="color-row">
+            <label for="input-icon-fg">Símbolo del icono</label>
+            <div class="color-picker-wrap">
+              <span id="hex-icon-fg" class="hex-code">#ffffff</span>
+              <input id="input-icon-fg" type="color" value="#ffffff" />
+            </div>
+          </div>
+          <div class="color-row">
+            <label for="input-accent-color">Color de acento UI</label>
+            <div class="color-picker-wrap">
+              <span id="hex-accent-color" class="hex-code">#1d4ed8</span>
+              <input id="input-accent-color" type="color" value="#1d4ed8" />
+            </div>
+          </div>
+
+          <div class="field theme-field">
+            <label for="select-theme">Tema de la interfaz</label>
+            <select id="select-theme">
+              <option value="auto">Automático (según el sistema)</option>
+              <option value="light">Claro</option>
+              <option value="dark">Oscuro</option>
+            </select>
+          </div>
+
+          <button id="btn-reset-appearance" class="secondary full-btn" type="button">
+            Restablecer colores predeterminados
+          </button>
         </div>
       </section>
 
-      <section class="card" aria-label="Motor de voz avanzado">
-        <div class="field">
-          <label for="select-engine">Motor de síntesis</label>
-          <select id="select-engine">
-            <option value="piper-neural">Voz Neuronal Local (Piper — Suave)</option>
-            <option value="web-speech">Web Speech API (Sistema operativo)</option>
-            <option value="local-http">Endpoint HTTP Local (Piper / Kokoro)</option>
-          </select>
+      <section
+        id="panel-advanced"
+        class="tab-panel"
+        role="tabpanel"
+        aria-labelledby="tab-advanced"
+        data-panel="advanced"
+        hidden
+      >
+        <div class="card">
+          <div class="field">
+            <label for="select-engine">Motor de síntesis</label>
+            <select id="select-engine">
+              <option value="piper-neural">Voz Neuronal Local (Piper — Suave)</option>
+              <option value="web-speech">Web Speech API (Sistema operativo)</option>
+              <option value="local-http">Endpoint HTTP Local (Piper / Kokoro)</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="select-local-protocol">Protocolo local</label>
+            <select id="select-local-protocol">
+              <option value="piper">Piper HTTP</option>
+              <option value="kokoro-openai">Kokoro (OpenAI-compatible)</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="input-local-endpoint">Endpoint local (solo localhost)</label>
+            <input
+              id="input-local-endpoint"
+              type="url"
+              placeholder="http://127.0.0.1:5000/tts"
+              aria-describedby="endpoint-feedback"
+              autocomplete="off"
+            />
+            <button id="btn-save-endpoint" class="primary" type="button">Guardar endpoint</button>
+            <div id="endpoint-feedback" class="feedback" role="status" aria-live="polite"></div>
+          </div>
         </div>
-        <div class="field">
-          <label for="select-local-protocol">Protocolo local</label>
-          <select id="select-local-protocol">
-            <option value="piper">Piper HTTP</option>
-            <option value="kokoro-openai">Kokoro (OpenAI-compatible)</option>
-          </select>
+
+        <div class="card">
+          <h2 class="section-title">Lista negra de sitios</h2>
+          <div id="blocklist-status" class="sr-only" role="status" aria-live="polite"></div>
+          <ul id="blocked-domains-list" class="blocked-list"></ul>
         </div>
-        <div class="field">
-          <label for="input-local-endpoint">Endpoint local (solo localhost)</label>
-          <input
-            id="input-local-endpoint"
-            type="url"
-            placeholder="http://127.0.0.1:5000/tts"
-            aria-describedby="endpoint-feedback"
-            autocomplete="off"
-          />
-          <button id="btn-save-endpoint" class="primary" type="button">Guardar endpoint</button>
-          <div id="endpoint-feedback" class="feedback" role="status" aria-live="polite"></div>
+
+        <div class="card dock-tip">
+          <strong>Anclar en el dock:</strong>
+          <span>
+            En Chrome/Brave/Edge pulsa <strong>🧩</strong> → <strong>📌 Fijar</strong>. En
+            Firefox/Zen/LibreWolf aparece fijado automáticamente en la barra.
+          </span>
         </div>
       </section>
-
-      <section class="card" aria-label="Dominios bloqueados">
-        <h2 class="section-title">Lista negra de sitios</h2>
-        <div id="blocklist-status" class="sr-only" role="status" aria-live="polite"></div>
-        <ul id="blocked-domains-list" class="blocked-list"></ul>
-      </section>
-
-      <p class="shortcut-hint">
-        Atajo de teclado: <strong>Alt + S</strong> (leer selección / detener)
-      </p>
     </main>
+
+    <p class="shortcut-hint">Atajo global: <strong>Alt + S</strong> (leer selección / detener)</p>
 
     <script type="module" src="./popup.ts"></script>
   </body>

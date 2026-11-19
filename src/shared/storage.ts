@@ -38,6 +38,11 @@ export interface StorageBackend {
   set(items: Record<string, unknown>): Promise<void>;
 }
 
+export type SettingsPatch = Partial<Omit<ExtensionSettings, 'appearance' | 'localHttp'>> & {
+  readonly appearance?: Partial<AppearanceSettings>;
+  readonly localHttp?: Partial<ExtensionSettings['localHttp']>;
+};
+
 export function normalizeDomain(input: string): string {
   const trimmed = input.trim().toLowerCase();
   if (!trimmed) {
@@ -154,7 +159,7 @@ export function createStorageAdapter(backend: StorageBackend) {
       return mergeSettings(record[SETTINGS_STORAGE_KEY]);
     },
 
-    updateSettings(patch: Partial<ExtensionSettings>): Promise<ExtensionSettings> {
+    updateSettings(patch: SettingsPatch): Promise<ExtensionSettings> {
       const task = writeQueue.then(async () => {
         const record = await backend.get(SETTINGS_STORAGE_KEY);
         const current = mergeSettings(record[SETTINGS_STORAGE_KEY]);
