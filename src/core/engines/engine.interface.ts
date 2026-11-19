@@ -4,6 +4,7 @@ export interface TTSEngineCapabilities {
   readonly supportsPauseResume: boolean;
   readonly supportsLiveRateChange: boolean;
   readonly maxChunkChars: number;
+  readonly streamingFirstChunkChars?: number;
 }
 
 export interface TTSEngineInterface {

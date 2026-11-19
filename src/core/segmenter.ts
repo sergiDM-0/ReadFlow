@@ -1,5 +1,15 @@
 const PROTECTED_DOT_TOKEN = '\uE000';
 const DEFAULT_MAX_CHUNK_CHARS = 220;
+const DEFAULT_STREAMING_FIRST_CHARS = 75;
+const DEFAULT_STREAMING_SECOND_CHARS = 140;
+const DEFAULT_MIN_LEAD_CHARS = 18;
+
+export interface StreamingSegmentOptions {
+  readonly firstChunkMaxChars?: number;
+  readonly secondChunkMaxChars?: number;
+  readonly maxChunkChars?: number;
+  readonly minLeadChars?: number;
+}
 
 const ABBREVIATION_RE =
   /\b(Sr|Sra|Srta|Dr|Dra|Prof|Ing|Lic|Arq|Mr|Mrs|Ms|St|Jr|vs|etc|fig|vol|no|núm|ej|p\.ej|e\.g|i\.e)\./gi;
@@ -118,4 +128,92 @@ export function segmentSentences(
   }
 
   return results;
+}
+
+function splitLeadFragment(
+  text: string,
+  maxChars: number,
+  minLeadChars: number
+): readonly [string, string] | null {
+  if (text.length <= maxChars) {
+    return null;
+  }
+
+  const windowSlice = text.slice(0, maxChars + 1);
+
+  // Prefer natural clause punctuation (comma, semicolon, colon, dash) within [minLeadChars, maxChars].
+  const clauseRegex = /[,;:\u2014\u2013]\s+/g;
+  let bestClauseEnd = -1;
+  let match: RegExpExecArray | null = clauseRegex.exec(windowSlice);
+  while (match !== null) {
+    const endPos = match.index + 1;
+    if (endPos >= minLeadChars && endPos <= maxChars) {
+      bestClauseEnd = endPos;
+    }
+    match = clauseRegex.exec(windowSlice);
+  }
+
+  if (bestClauseEnd > 0) {
+    const lead = text.slice(0, bestClauseEnd).trim();
+    const rest = text.slice(bestClauseEnd).trim();
+    if (lead && rest) {
+      return [lead, rest];
+    }
+  }
+
+  // Fall back to the last word boundary within maxChars.
+  const spaceIdx = windowSlice.lastIndexOf(' ');
+  if (spaceIdx >= minLeadChars) {
+    const lead = text.slice(0, spaceIdx).trim();
+    const rest = text.slice(spaceIdx + 1).trim();
+    if (lead && rest) {
+      return [lead, rest];
+    }
+  }
+
+  return null;
+}
+
+export function segmentForStreaming(
+  text: string,
+  lang = 'en',
+  options: StreamingSegmentOptions = {}
+): string[] {
+  const maxChunkChars = options.maxChunkChars ?? DEFAULT_MAX_CHUNK_CHARS;
+  const firstChunkMaxChars = Math.min(
+    options.firstChunkMaxChars ?? DEFAULT_STREAMING_FIRST_CHARS,
+    maxChunkChars
+  );
+  const secondChunkMaxChars = Math.min(
+    options.secondChunkMaxChars ?? DEFAULT_STREAMING_SECOND_CHARS,
+    maxChunkChars
+  );
+  const minLeadChars = options.minLeadChars ?? DEFAULT_MIN_LEAD_CHARS;
+
+  const baseSentences = segmentSentences(text, lang, maxChunkChars);
+  if (baseSentences.length === 0) {
+    return [];
+  }
+
+  const [first, ...rest] = baseSentences;
+  const output: string[] = [];
+
+  const firstSplit = splitLeadFragment(first!, firstChunkMaxChars, minLeadChars);
+  if (!firstSplit) {
+    output.push(first!);
+    return [...output, ...rest];
+  }
+
+  const [leadChunk, remainder] = firstSplit;
+  output.push(leadChunk);
+
+  const secondSplit = splitLeadFragment(remainder, secondChunkMaxChars, minLeadChars);
+  if (secondSplit) {
+    output.push(secondSplit[0]);
+    output.push(...splitLongSentence(secondSplit[1], maxChunkChars));
+  } else {
+    output.push(remainder);
+  }
+
+  return [...output, ...rest];
 }
