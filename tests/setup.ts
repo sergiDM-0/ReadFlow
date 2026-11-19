@@ -53,6 +53,12 @@ vi.mock('webextension-polyfill', () => {
           addListener: vi.fn(),
         },
       },
+      action: {
+        setIcon: vi.fn(async () => undefined),
+        setBadgeText: vi.fn(async () => undefined),
+        setBadgeBackgroundColor: vi.fn(async () => undefined),
+        setTitle: vi.fn(async () => undefined),
+      },
       i18n: {
         detectLanguage: vi.fn(async () => ({
           isReliable: true,

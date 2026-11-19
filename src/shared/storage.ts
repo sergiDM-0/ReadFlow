@@ -1,12 +1,37 @@
 import browser from 'webextension-polyfill';
 import {
+  DEFAULT_APPEARANCE,
   DEFAULT_SETTINGS,
   PLAYBACK_RATES,
+  type AppearanceSettings,
   type ExtensionSettings,
   type PlaybackRate,
 } from './types';
 
 export const SETTINGS_STORAGE_KEY = 'echoselect_settings_v1';
+const SAFE_HEX_COLOR_RE = /^#[0-9a-f]{6}$/i;
+
+function sanitizeHexColor(value: unknown, fallback: string): string {
+  if (typeof value === 'string') {
+    const trimmed = value.trim().toLowerCase();
+    if (SAFE_HEX_COLOR_RE.test(trimmed)) {
+      return trimmed;
+    }
+  }
+  return fallback;
+}
+
+function mergeAppearance(raw: unknown): AppearanceSettings {
+  if (!raw || typeof raw !== 'object') {
+    return { ...DEFAULT_APPEARANCE };
+  }
+  const input = raw as Partial<AppearanceSettings>;
+  return {
+    iconBgColor: sanitizeHexColor(input.iconBgColor, DEFAULT_APPEARANCE.iconBgColor),
+    iconFgColor: sanitizeHexColor(input.iconFgColor, DEFAULT_APPEARANCE.iconFgColor),
+    accentColor: sanitizeHexColor(input.accentColor, DEFAULT_APPEARANCE.accentColor),
+  };
+}
 
 export interface StorageBackend {
   get(key: string): Promise<Record<string, unknown>>;
@@ -62,7 +87,11 @@ function isValidRate(rate: unknown): rate is PlaybackRate {
 
 export function mergeSettings(raw: unknown): ExtensionSettings {
   if (!raw || typeof raw !== 'object') {
-    return { ...DEFAULT_SETTINGS, localHttp: { ...DEFAULT_SETTINGS.localHttp } };
+    return {
+      ...DEFAULT_SETTINGS,
+      appearance: { ...DEFAULT_APPEARANCE },
+      localHttp: { ...DEFAULT_SETTINGS.localHttp },
+    };
   }
 
   const input = raw as Partial<ExtensionSettings>;
@@ -88,6 +117,7 @@ export function mergeSettings(raw: unknown): ExtensionSettings {
         ? { ...input.voicePreferences }
         : DEFAULT_SETTINGS.voicePreferences,
     theme: input.theme === 'light' || input.theme === 'dark' ? input.theme : 'auto',
+    appearance: mergeAppearance(input.appearance),
     omitCodeBlocks:
       typeof input.omitCodeBlocks === 'boolean'
         ? input.omitCodeBlocks
@@ -131,6 +161,9 @@ export function createStorageAdapter(backend: StorageBackend) {
         const next = mergeSettings({
           ...current,
           ...patch,
+          appearance: patch.appearance
+            ? { ...current.appearance, ...patch.appearance }
+            : current.appearance,
           localHttp: patch.localHttp
             ? { ...current.localHttp, ...patch.localHttp }
             : current.localHttp,

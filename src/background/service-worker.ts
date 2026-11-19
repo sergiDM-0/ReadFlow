@@ -1,8 +1,9 @@
 import browser from 'webextension-polyfill';
 import { PiperRuntime } from '../core/neural/piper-runtime';
 import { resolvePiperVoiceForLang } from '../core/neural/piper-voices';
-import { getExtensionStorage } from '../shared/storage';
-import type { ExtensionMessage, MessageResult } from '../shared/types';
+import { renderToolbarIconImageData } from '../shared/icon-renderer';
+import { getExtensionStorage, onSettingsChanged } from '../shared/storage';
+import type { ExtensionMessage, ExtensionSettings, MessageResult } from '../shared/types';
 import { handleRuntimeMessage } from './message-handler';
 
 const CONTEXT_MENU_ID = 'echoselect-read-selection';
@@ -118,6 +119,64 @@ async function warmupNeuralInBackground(voiceId: string): Promise<void> {
   await getOrCreateFirefoxRuntime().warmup(voiceId);
 }
 
+function applyToolbarIconAndBadge(settings: ExtensionSettings): void {
+  const actionApi = browser.action;
+  if (!actionApi) {
+    return;
+  }
+
+  const autoReadActive = settings.autoReadSelection;
+  const icon16 = renderToolbarIconImageData(settings.appearance, 16, {
+    enabled: settings.enabled,
+    autoReadActive,
+  });
+  const icon32 = renderToolbarIconImageData(settings.appearance, 32, {
+    enabled: settings.enabled,
+    autoReadActive,
+  });
+  const icon48 = renderToolbarIconImageData(settings.appearance, 48, {
+    enabled: settings.enabled,
+    autoReadActive,
+  });
+
+  if (icon16 && icon32 && icon48 && typeof actionApi.setIcon === 'function') {
+    const imageDataMap: Record<string, browser.Action.ImageDataType> = {
+      '16': icon16 as unknown as browser.Action.ImageDataType,
+      '32': icon32 as unknown as browser.Action.ImageDataType,
+      '48': icon48 as unknown as browser.Action.ImageDataType,
+    };
+    void actionApi.setIcon({ imageData: imageDataMap }).catch(() => undefined);
+  }
+
+  if (typeof actionApi.setBadgeText === 'function') {
+    const badgeText = !settings.enabled ? 'OFF' : autoReadActive ? 'ON' : '';
+    void actionApi.setBadgeText({ text: badgeText }).catch(() => undefined);
+  }
+
+  if (typeof actionApi.setBadgeBackgroundColor === 'function') {
+    const badgeColor = !settings.enabled ? '#64748b' : '#16a34a';
+    void actionApi.setBadgeBackgroundColor({ color: badgeColor }).catch(() => undefined);
+  }
+
+  if (typeof actionApi.setTitle === 'function') {
+    const title = !settings.enabled
+      ? 'EchoSelect TTS (Desactivado)'
+      : autoReadActive
+        ? 'EchoSelect TTS (Auto-lectura ON — clic para configurar)'
+        : 'EchoSelect TTS — Leer y configurar (Alt+S)';
+    void actionApi.setTitle({ title }).catch(() => undefined);
+  }
+}
+
+function syncToolbarFromStorage(): void {
+  void getExtensionStorage()
+    .getSettings()
+    .then((settings) => {
+      applyToolbarIconAndBadge(settings);
+    })
+    .catch(() => undefined);
+}
+
 function scheduleDefaultVoiceWarmup(): void {
   void getExtensionStorage()
     .getSettings()
@@ -180,13 +239,21 @@ async function sendToggleToActiveTab(
 
 browser.runtime.onInstalled?.addListener(() => {
   registerContextMenu();
+  syncToolbarFromStorage();
   scheduleDefaultVoiceWarmup();
 });
 
 browser.runtime.onStartup?.addListener(() => {
   registerContextMenu();
+  syncToolbarFromStorage();
   scheduleDefaultVoiceWarmup();
 });
+
+onSettingsChanged((nextSettings) => {
+  applyToolbarIconAndBadge(nextSettings);
+});
+
+syncToolbarFromStorage();
 
 browser.contextMenus?.onClicked.addListener((info, tab) => {
   if (info.menuItemId !== CONTEXT_MENU_ID) {

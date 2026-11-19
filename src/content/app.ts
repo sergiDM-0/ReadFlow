@@ -226,6 +226,7 @@ export class EchoSelectContentApp {
       this.mountUi();
     } else {
       this.host.setTheme(this.settings.theme);
+      this.host.setAppearance(this.settings.appearance);
       this.refreshEngineIfNeeded();
       this.syncAutoReadUi();
     }
@@ -247,6 +248,7 @@ export class EchoSelectContentApp {
 
   private mountUi(): void {
     this.host = new ShadowHost(this.settings.theme);
+    this.host.setAppearance(this.settings.appearance);
     this.host.mount();
 
     this.currentEngine = createEngineForSettings(this.settings);

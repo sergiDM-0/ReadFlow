@@ -51,6 +51,18 @@ export interface LocalHttpConfig {
   readonly timeoutMs: number;
 }
 
+export interface AppearanceSettings {
+  readonly iconBgColor: string;
+  readonly iconFgColor: string;
+  readonly accentColor: string;
+}
+
+export const DEFAULT_APPEARANCE: AppearanceSettings = {
+  iconBgColor: '#2563eb',
+  iconFgColor: '#ffffff',
+  accentColor: '#1d4ed8',
+};
+
 export interface ExtensionSettings {
   readonly schemaVersion: 1;
   readonly enabled: boolean;
@@ -59,6 +71,7 @@ export interface ExtensionSettings {
   readonly defaultRate: PlaybackRate;
   readonly voicePreferences: Readonly<Record<string, string>>;
   readonly theme: ThemePreference;
+  readonly appearance: AppearanceSettings;
   readonly omitCodeBlocks: boolean;
   readonly stripUrls: boolean;
   readonly autoReadSelection: boolean;
@@ -74,6 +87,7 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
   defaultRate: 1,
   voicePreferences: {},
   theme: 'auto',
+  appearance: DEFAULT_APPEARANCE,
   omitCodeBlocks: true,
   stripUrls: true,
   autoReadSelection: false,

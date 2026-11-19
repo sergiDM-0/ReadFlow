@@ -50,6 +50,20 @@ describe('storage helpers', () => {
     expect(merged.engine).toBe('local-http');
     expect(merged.theme).toBe('dark');
     expect(merged.localHttp.protocol).toBe('kokoro-openai');
+
+    // Sanitizes invalid hex colors in appearance to safe defaults (prevents CSS injection)
+    const unsafeAppearance = mergeSettings({
+      appearance: {
+        iconBgColor: '#059669',
+        iconFgColor: 'javascript:alert(1)',
+        accentColor: 'red; background:url(evil)',
+      },
+    });
+    expect(unsafeAppearance.appearance).toEqual({
+      iconBgColor: '#059669',
+      iconFgColor: DEFAULT_SETTINGS.appearance.iconFgColor,
+      accentColor: DEFAULT_SETTINGS.appearance.accentColor,
+    });
   });
 
   it('reads and writes settings via injected memory store', async () => {

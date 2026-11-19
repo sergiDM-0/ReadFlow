@@ -1,4 +1,13 @@
-import type { ThemePreference } from '../../shared/types';
+import {
+  darkenHexColor,
+  getContrastingForeground,
+  isValidHexColor,
+} from '../../shared/icon-renderer';
+import {
+  DEFAULT_APPEARANCE,
+  type AppearanceSettings,
+  type ThemePreference,
+} from '../../shared/types';
 import { SHADOW_UI_STYLES } from './styles';
 
 export class ShadowHost {
@@ -35,6 +44,18 @@ export class ShadowHost {
     } else {
       this.hostElement.setAttribute('data-theme', theme);
     }
+  }
+
+  public setAppearance(appearance: AppearanceSettings): void {
+    const accent = isValidHexColor(appearance.accentColor)
+      ? appearance.accentColor
+      : DEFAULT_APPEARANCE.accentColor;
+    const hover = darkenHexColor(accent, 0.16);
+    const fg = getContrastingForeground(accent);
+    this.hostElement.style.setProperty('--es-accent', accent);
+    this.hostElement.style.setProperty('--es-accent-hover', hover);
+    this.hostElement.style.setProperty('--es-accent-fg', fg);
+    this.hostElement.style.setProperty('--es-focus-ring', accent);
   }
 
   public containsEventTarget(target: EventTarget | null, path?: EventTarget[]): boolean {

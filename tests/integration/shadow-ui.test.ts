@@ -13,12 +13,14 @@ describe('Shadow DOM UI lifecycle', () => {
     document.documentElement.appendChild(staleHost);
 
     const host = new ShadowHost('auto');
+    host.setAppearance({ iconBgColor: '#059669', iconFgColor: '#ffffff', accentColor: '#047857' });
     host.mount();
 
     const hostEls = document.querySelectorAll('echo-select-ui');
     expect(hostEls).toHaveLength(1);
     expect(hostEls[0]).toBe(host.hostElement);
     expect(hostEls[0]?.shadowRoot).not.toBeNull();
+    expect(host.hostElement.style.getPropertyValue('--es-accent')).toBe('#047857');
 
     host.destroy();
     expect(document.querySelector('echo-select-ui')).toBeNull();
