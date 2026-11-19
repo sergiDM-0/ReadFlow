@@ -12,8 +12,12 @@ import {
 } from '../core/engines/piper-neural.engine';
 import { WebSpeechEngine } from '../core/engines/web-speech.engine';
 import type { TTSEngineInterface } from '../core/engines/engine.interface';
-import { detectLanguage, selectPreferredVoice } from '../core/language-detector';
-import { segmentSentences } from '../core/segmenter';
+import {
+  detectLanguage,
+  detectLanguageHeuristic,
+  selectPreferredVoice,
+} from '../core/language-detector';
+import { segmentForStreaming, segmentSentences } from '../core/segmenter';
 import { TTSManager } from '../core/tts-manager';
 import { getExtensionStorage, isHostBlocked, onSettingsChanged } from '../shared/storage';
 import {
@@ -78,6 +82,15 @@ async function sendNeuralSynthesize(
   return response.data;
 }
 
+function sendNeuralWarmup(lang: string, voiceId?: string): void {
+  void browser.runtime
+    .sendMessage({
+      type: 'NEURAL_TTS_WARMUP',
+      payload: { lang, voiceId },
+    } satisfies ExtensionMessage)
+    .catch(() => undefined);
+}
+
 function createEngineForSettings(settings: ExtensionSettings): TTSEngineInterface {
   if (settings.engine === 'local-http') {
     return new LocalHttpEngine(settings.localHttp, sendLocalSynthesize);
@@ -99,6 +112,7 @@ export class EchoSelectContentApp {
   private ttsManager: TTSManager | null = null;
   private currentEngine: TTSEngineInterface | null = null;
   private pendingText = '';
+  private warmedVoiceKey = '';
   private speakSeq = 0;
   private streamQueue: Promise<void> = Promise.resolve();
   private unsubSettings: (() => void) | null = null;
@@ -199,6 +213,7 @@ export class EchoSelectContentApp {
       onSelect: ({ text, position }) => {
         this.pendingText = text;
         this.floatingBtn?.show(position);
+        this.warmupNeuralForText(text);
       },
       onClear: () => {
         this.pendingText = '';
@@ -252,8 +267,20 @@ export class EchoSelectContentApp {
     this.geminiToggleBtn.textContent = active ? '🔊 Auto-lectura: ON' : '🔇 Auto-lectura: OFF';
   }
 
+  private warmupNeuralForText(text: string): void {
+    if (this.settings.engine !== 'piper-neural') return;
+    const fallbackLang = document.documentElement.lang || navigator.language || 'es';
+    const lang = detectLanguageHeuristic(text, fallbackLang);
+    const preferredVoiceId = this.settings.voicePreferences[lang];
+    const key = `${lang}::${preferredVoiceId ?? ''}`;
+    if (this.warmedVoiceKey === key) return;
+    this.warmedVoiceKey = key;
+    sendNeuralWarmup(lang, preferredVoiceId);
+  }
+
   private refreshEngine(): void {
     if (!this.ttsManager) return;
+    this.warmedVoiceKey = '';
     const nextEngine = createEngineForSettings(this.settings);
     this.currentEngine?.dispose();
     this.currentEngine = nextEngine;
@@ -319,6 +346,7 @@ export class EchoSelectContentApp {
     const lang = await detectLanguage(text, {
       remoteDetect: detectViaBackground,
       fallbackLang,
+      preferFastLocal: true,
     });
 
     if (token !== this.speakSeq || !this.ttsManager || !this.currentEngine) return;
@@ -328,11 +356,13 @@ export class EchoSelectContentApp {
       omitCodeBlocks: this.settings.omitCodeBlocks,
       stripUrls: this.settings.stripUrls,
     });
-    const sentences = segmentSentences(
-      cleaned,
-      lang,
-      this.currentEngine.capabilities.maxChunkChars
-    );
+    const firstChunkMax = this.currentEngine.capabilities.streamingFirstChunkChars;
+    const sentences = firstChunkMax
+      ? segmentForStreaming(cleaned, lang, {
+          firstChunkMaxChars: firstChunkMax,
+          maxChunkChars: this.currentEngine.capabilities.maxChunkChars,
+        })
+      : segmentSentences(cleaned, lang, this.currentEngine.capabilities.maxChunkChars);
     if (sentences.length === 0) return;
 
     const voices = await this.currentEngine.getVoices();

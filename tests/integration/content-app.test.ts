@@ -221,8 +221,19 @@ describe('EchoSelectContentApp integration', () => {
 
     await messageListener!({
       type: 'COMMAND_TOGGLE_READ',
-      payload: { source: 'shortcut', text: 'Prueba de error neuronal.' },
+      payload: {
+        source: 'shortcut',
+        text: 'Cuando seleccionas una oración larga para leer, el motor neuronal divide la primera cláusula corta y reproduce casi al instante.',
+      },
     });
+
+    // Verify fast-start streaming chunking sent the short lead clause first to NEURAL_TTS_SYNTHESIZE
+    const synthCall = vi
+      .mocked(browser.runtime.sendMessage)
+      .mock.calls.find((c) => (c[0] as { type?: string })?.type === 'NEURAL_TTS_SYNTHESIZE');
+    expect(synthCall).toBeDefined();
+    const sentText = (synthCall?.[0] as { payload: { text: string } }).payload.text;
+    expect(sentText).toBe('Cuando seleccionas una oración larga para leer,');
 
     const stateRes = (await messageListener!({ type: 'GET_TAB_PLAYBACK_STATE' })) as {
       ok: boolean;

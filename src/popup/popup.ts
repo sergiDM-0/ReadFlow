@@ -1,6 +1,7 @@
 import browser from 'webextension-polyfill';
 import { WebSpeechEngine } from '../core/engines/web-speech.engine';
 import { getExtensionStorage } from '../shared/storage';
+import type { ExtensionMessage } from '../shared/types';
 import { initPopup } from './popup-controller';
 
 async function getActiveTabHost(): Promise<string> {
@@ -28,6 +29,15 @@ async function requestOriginPermission(originPattern: string): Promise<boolean> 
   }
 }
 
+function warmupNeuralVoice(lang: string, voiceId?: string): void {
+  void browser.runtime
+    .sendMessage({
+      type: 'NEURAL_TTS_WARMUP',
+      payload: { lang, voiceId },
+    } satisfies ExtensionMessage)
+    .catch(() => undefined);
+}
+
 async function bootstrap(): Promise<void> {
   try {
     const engine = new WebSpeechEngine();
@@ -37,6 +47,7 @@ async function bootstrap(): Promise<void> {
       getActiveTabHost,
       getAvailableVoices: () => engine.getVoices(),
       requestOriginPermission,
+      warmupNeuralVoice,
     });
   } catch {
     // Prevent unhandled promise rejection if popup closes mid-bootstrap.

@@ -21,6 +21,7 @@ export interface InitPopupOptions {
   readonly getActiveTabHost: () => Promise<string>;
   readonly getAvailableVoices: () => Promise<readonly VoiceInfo[]>;
   readonly requestOriginPermission?: (originPattern: string) => Promise<boolean>;
+  readonly warmupNeuralVoice?: (lang: string, voiceId?: string) => void;
 }
 
 function renderVoiceSelect(
@@ -82,7 +83,14 @@ function renderBlockedDomains(
 }
 
 export async function initPopup(options: InitPopupOptions): Promise<void> {
-  const { root, storage, getActiveTabHost, getAvailableVoices, requestOriginPermission } = options;
+  const {
+    root,
+    storage,
+    getActiveTabHost,
+    getAvailableVoices,
+    requestOriginPermission,
+    warmupNeuralVoice,
+  } = options;
   let settings = await storage.getSettings();
   const activeHost = await getActiveTabHost();
   const voices = await getAvailableVoices();
@@ -195,15 +203,31 @@ export async function initPopup(options: InitPopupOptions): Promise<void> {
   });
 
   selectEngine?.addEventListener('change', () => {
-    persistPatch({ engine: selectEngine.value as EngineId }, () => syncDom());
+    const nextEngine = selectEngine.value as EngineId;
+    persistPatch({ engine: nextEngine }, () => {
+      syncDom();
+      if (nextEngine === 'piper-neural') {
+        warmupNeuralVoice?.('es', settings.voicePreferences.es || undefined);
+      }
+    });
   });
 
   selectVoiceEs?.addEventListener('change', () => {
-    persistPatch({ voicePreferences: { es: selectVoiceEs.value } });
+    const nextVoiceId = selectVoiceEs.value;
+    persistPatch({ voicePreferences: { es: nextVoiceId } }, () => {
+      if (settings.engine === 'piper-neural') {
+        warmupNeuralVoice?.('es', nextVoiceId || undefined);
+      }
+    });
   });
 
   selectVoiceEn?.addEventListener('change', () => {
-    persistPatch({ voicePreferences: { en: selectVoiceEn.value } });
+    const nextVoiceId = selectVoiceEn.value;
+    persistPatch({ voicePreferences: { en: nextVoiceId } }, () => {
+      if (settings.engine === 'piper-neural') {
+        warmupNeuralVoice?.('en', nextVoiceId || undefined);
+      }
+    });
   });
 
   toggleGemini?.addEventListener('change', () => {

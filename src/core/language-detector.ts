@@ -9,6 +9,7 @@ export interface RemoteLanguageDetection {
 export interface DetectLanguageOptions {
   readonly remoteDetect?: (text: string) => Promise<RemoteLanguageDetection | null>;
   readonly fallbackLang?: string;
+  readonly preferFastLocal?: boolean;
 }
 
 const LANGUAGE_STOPWORDS: Readonly<Record<string, readonly string[]>> = {
@@ -64,14 +65,17 @@ export function getPrimaryLang(lang: string): string {
   return normalized.split('-')[0] || 'en';
 }
 
-export function detectLanguageHeuristic(text: string, fallbackLang = 'en'): string {
+function scoreHeuristic(
+  text: string,
+  fallbackLang: string
+): { readonly lang: string; readonly bestScore: number; readonly margin: number } {
   const words = text
     .toLowerCase()
     .split(/[^a-záéíóúüñãõçàâèêëîïôùûœäöß]+/i)
     .filter((w) => w.length >= 2);
 
   if (words.length === 0) {
-    return getPrimaryLang(fallbackLang);
+    return { lang: getPrimaryLang(fallbackLang), bestScore: 0, margin: 0 };
   }
 
   const scores: Record<string, number> = { es: 0, en: 0, pt: 0, fr: 0, de: 0 };
@@ -91,15 +95,23 @@ export function detectLanguageHeuristic(text: string, fallbackLang = 'en'): stri
 
   let bestLang = getPrimaryLang(fallbackLang);
   let bestScore = 0;
+  let secondScore = 0;
 
   for (const [lang, score] of Object.entries(scores)) {
     if (score > bestScore) {
+      secondScore = bestScore;
       bestScore = score;
       bestLang = lang;
+    } else if (score > secondScore) {
+      secondScore = score;
     }
   }
 
-  return bestLang;
+  return { lang: bestLang, bestScore, margin: bestScore - secondScore };
+}
+
+export function detectLanguageHeuristic(text: string, fallbackLang = 'en'): string {
+  return scoreHeuristic(text, fallbackLang).lang;
 }
 
 export async function detectLanguage(
@@ -110,6 +122,13 @@ export async function detectLanguage(
   const sample = text.trim().slice(0, 600);
   if (!sample) {
     return fallbackLang;
+  }
+
+  if (options.preferFastLocal) {
+    const local = scoreHeuristic(sample, fallbackLang);
+    if (local.bestScore >= 6 && local.margin >= 4) {
+      return local.lang;
+    }
   }
 
   if (options.remoteDetect) {

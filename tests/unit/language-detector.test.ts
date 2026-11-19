@@ -53,6 +53,27 @@ describe('language-detector', () => {
     expect(lang).toBe('es');
   });
 
+  it('skips remote IPC roundtrip when preferFastLocal is enabled and local confidence is high', async () => {
+    const remoteDetect = vi
+      .fn()
+      .mockResolvedValue({ lang: 'en', confidence: 99, isReliable: true });
+    const fastSpanish = await detectLanguage(
+      'Esta extensión lee el texto seleccionado con una voz suave y natural.',
+      { remoteDetect, fallbackLang: 'en', preferFastLocal: true }
+    );
+    expect(fastSpanish).toBe('es');
+    expect(remoteDetect).not.toHaveBeenCalled();
+
+    // Ambiguous short text still falls back to remoteDetect
+    const ambiguous = await detectLanguage('OK test', {
+      remoteDetect,
+      fallbackLang: 'es',
+      preferFastLocal: true,
+    });
+    expect(ambiguous).toBe('en');
+    expect(remoteDetect).toHaveBeenCalledOnce();
+  });
+
   it('selectPreferredVoice honors explicit preference, then natural voice quality, then local match', () => {
     const voices: VoiceInfo[] = [
       {
