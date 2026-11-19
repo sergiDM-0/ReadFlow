@@ -4,7 +4,11 @@ import {
   resolvePiperVoiceForLang,
   getPiperModelUrls,
 } from '../../src/core/neural/piper-voices';
-import { pcmToWavBuffer, arrayBufferToBase64 } from '../../src/core/neural/wav-encoder';
+import {
+  pcmToWavBuffer,
+  arrayBufferToBase64,
+  trimPcmSilence,
+} from '../../src/core/neural/wav-encoder';
 import { PiperNeuralEngine } from '../../src/core/engines/piper-neural.engine';
 import { selectPreferredVoice } from '../../src/core/language-detector';
 import type { VoiceInfo } from '../../src/shared/types';
@@ -43,6 +47,20 @@ describe('pcmToWavBuffer', () => {
     expect(view.getInt16(44 + 6, true)).toBe(32767);
     expect(view.getInt16(44 + 8, true)).toBe(-32768);
     expect(arrayBufferToBase64(wav).length).toBeGreaterThan(20);
+  });
+
+  it('trims dead leading/trailing silence from Piper PCM while keeping a short natural pad', () => {
+    const sampleRate = 1000; // 1 sample = 1 ms for simple assertions
+    const pcm = new Float32Array(800);
+    // Active speech from 300ms to 450ms
+    for (let i = 300; i < 450; i += 1) {
+      pcm[i] = 0.4;
+    }
+    const trimmed = trimPcmSilence(pcm, sampleRate);
+    // 30ms lead + 150ms speech + 50ms trail = 230 samples (saved 570ms of dead silence!)
+    expect(trimmed.length).toBe(230);
+    expect(trimPcmSilence(new Float32Array(0), sampleRate).length).toBe(0);
+    expect(trimPcmSilence(new Float32Array(20), sampleRate).length).toBe(20);
   });
 });
 

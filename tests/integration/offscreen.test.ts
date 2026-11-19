@@ -1,15 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import browser from 'webextension-polyfill';
 
-const { synthesizeMock, warmupMock } = vi.hoisted(() => ({
+const { synthesizeMock, warmupMock, cancelPendingMock } = vi.hoisted(() => ({
   synthesizeMock: vi.fn(),
   warmupMock: vi.fn(),
+  cancelPendingMock: vi.fn(),
 }));
 
 vi.mock('../../src/core/neural/piper-runtime', () => ({
   PiperRuntime: vi.fn().mockImplementation(() => ({
     synthesize: synthesizeMock,
     warmup: warmupMock,
+    cancelPending: cancelPendingMock,
   })),
 }));
 
@@ -87,5 +89,12 @@ describe('offscreen Piper neural document listener', () => {
       { id: browser.runtime.id }
     );
     expect(warmupErr).toMatchObject({ ok: false, code: 'SYNTHESIS_FAILED', message: 'Offline' });
+
+    const cancelRes = await listener!(
+      { type: 'OFFSCREEN_PIPER_CANCEL' },
+      { id: browser.runtime.id }
+    );
+    expect(cancelRes).toEqual({ ok: true, data: { cancelled: true } });
+    expect(cancelPendingMock).toHaveBeenCalledOnce();
   });
 });

@@ -91,6 +91,14 @@ function sendNeuralWarmup(lang: string, voiceId?: string): void {
     .catch(() => undefined);
 }
 
+function sendNeuralCancel(): void {
+  void browser.runtime
+    .sendMessage({
+      type: 'NEURAL_TTS_CANCEL',
+    } satisfies ExtensionMessage)
+    .catch(() => undefined);
+}
+
 function createSpeakerSvg(active: boolean): SVGSVGElement {
   const ns = 'http://www.w3.org/2000/svg';
   const svg = document.createElementNS(ns, 'svg');
@@ -138,7 +146,7 @@ function createEngineForSettings(settings: ExtensionSettings): TTSEngineInterfac
   if (settings.engine === 'web-speech') {
     return new WebSpeechEngine();
   }
-  return new PiperNeuralEngine(sendNeuralSynthesize);
+  return new PiperNeuralEngine(sendNeuralSynthesize, undefined, sendNeuralCancel);
 }
 
 export class EchoSelectContentApp {

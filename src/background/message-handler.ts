@@ -24,8 +24,10 @@ export interface MessageHandlerDeps {
   readonly synthesizeNeural?: (request: {
     readonly text: string;
     readonly voiceId: string;
+    readonly rate?: number;
   }) => Promise<{ readonly mimeType: string; readonly audioBase64: string }>;
   readonly warmupNeural?: (voiceId: string) => Promise<void>;
+  readonly cancelNeural?: () => Promise<void> | void;
   readonly fetchFn?: typeof fetch;
 }
 
@@ -112,6 +114,15 @@ export async function handleRuntimeMessage(
     return handleNeuralWarmup(message.payload, sender, deps);
   }
 
+  if (message.type === 'NEURAL_TTS_CANCEL') {
+    try {
+      await deps.cancelNeural?.();
+    } catch {
+      // Cancellation is best-effort.
+    }
+    return { ok: true, data: { cancelled: true } };
+  }
+
   if (message.type === 'LOCAL_TTS_SYNTHESIZE') {
     return handleLocalSynthesize(message.payload, sender, deps);
   }
@@ -135,6 +146,10 @@ async function handleNeuralSynthesize(
   const text = typeof rawPayload.text === 'string' ? rawPayload.text.trim().slice(0, 1200) : '';
   const lang = typeof rawPayload.lang === 'string' ? rawPayload.lang : 'es';
   const requestedVoiceId = typeof rawPayload.voiceId === 'string' ? rawPayload.voiceId : '';
+  const rawRate =
+    typeof rawPayload.rate === 'number' && Number.isFinite(rawPayload.rate)
+      ? Math.min(2.5, Math.max(0.5, rawPayload.rate))
+      : 1;
 
   if (!text) {
     return { ok: false, code: 'INVALID_MESSAGE', message: 'Empty text cannot be synthesized.' };
@@ -177,6 +192,7 @@ async function handleNeuralSynthesize(
     const data = await deps.synthesizeNeural({
       text,
       voiceId: resolvedVoice.id,
+      rate: rawRate,
     });
     return { ok: true, data };
   } catch (err) {

@@ -1,3 +1,39 @@
+const SILENCE_THRESHOLD = 0.008;
+const LEAD_PAD_MS = 30;
+const TRAIL_PAD_MS = 50;
+
+export function trimPcmSilence(samples: Float32Array, sampleRate: number): Float32Array {
+  if (samples.length === 0 || sampleRate <= 0) {
+    return samples;
+  }
+
+  let firstActive = -1;
+  for (let i = 0; i < samples.length; i += 1) {
+    if (Math.abs(samples[i] ?? 0) >= SILENCE_THRESHOLD) {
+      firstActive = i;
+      break;
+    }
+  }
+  if (firstActive === -1) {
+    return samples;
+  }
+
+  let lastActive = samples.length - 1;
+  for (let i = samples.length - 1; i >= firstActive; i -= 1) {
+    if (Math.abs(samples[i] ?? 0) >= SILENCE_THRESHOLD) {
+      lastActive = i;
+      break;
+    }
+  }
+
+  const leadPad = Math.round((sampleRate * LEAD_PAD_MS) / 1000);
+  const trailPad = Math.round((sampleRate * TRAIL_PAD_MS) / 1000);
+  const start = Math.max(0, firstActive - leadPad);
+  const end = Math.min(samples.length, lastActive + 1 + trailPad);
+
+  return start === 0 && end === samples.length ? samples : samples.subarray(start, end);
+}
+
 export function pcmToWavBuffer(samples: Float32Array, sampleRate: number): ArrayBuffer {
   const headerLength = 44;
   const numChannels = 1;

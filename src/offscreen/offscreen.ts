@@ -18,6 +18,11 @@ browser.runtime.onMessage.addListener(
       return undefined;
     }
 
+    if (message.type === 'OFFSCREEN_PIPER_CANCEL') {
+      runtime.cancelPending();
+      return Promise.resolve({ ok: true as const, data: { cancelled: true as const } });
+    }
+
     if (message.type === 'OFFSCREEN_PIPER_WARMUP') {
       return runtime
         .warmup(message.payload.voiceId)
@@ -34,7 +39,7 @@ browser.runtime.onMessage.addListener(
     }
 
     return runtime
-      .synthesize(message.payload.text, message.payload.voiceId)
+      .synthesize(message.payload.text, message.payload.voiceId, message.payload.rate)
       .then((data) => ({ ok: true as const, data }))
       .catch((err: unknown) => ({
         ok: false as const,

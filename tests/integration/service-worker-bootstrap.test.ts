@@ -1,17 +1,19 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import browser from 'webextension-polyfill';
 
-const { piperSynthesizeMock, piperWarmupMock } = vi.hoisted(() => ({
+const { piperSynthesizeMock, piperWarmupMock, piperCancelMock } = vi.hoisted(() => ({
   piperSynthesizeMock: vi
     .fn()
     .mockResolvedValue({ mimeType: 'audio/wav', audioBase64: 'UklGRg==' }),
   piperWarmupMock: vi.fn().mockResolvedValue(undefined),
+  piperCancelMock: vi.fn(),
 }));
 
 vi.mock('../../src/core/neural/piper-runtime', () => ({
   PiperRuntime: vi.fn().mockImplementation(() => ({
     synthesize: piperSynthesizeMock,
     warmup: piperWarmupMock,
+    cancelPending: piperCancelMock,
   })),
 }));
 
@@ -137,6 +139,12 @@ describe('service-worker entrypoint wiring', () => {
       { id: browser.runtime.id }
     );
     expect(warmupRes).toMatchObject({ ok: true, data: { voiceId: 'es_MX-claude-high' } });
+
+    const cancelRes = await messageListeners[0]?.(
+      { type: 'NEURAL_TTS_CANCEL' },
+      { id: browser.runtime.id }
+    );
+    expect(cancelRes).toEqual({ ok: true, data: { cancelled: true } });
     delete (globalThis as unknown as { chrome?: unknown }).chrome;
   });
 });

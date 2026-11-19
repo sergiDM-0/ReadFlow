@@ -56,13 +56,18 @@ async function ensureOffscreenDocument(offscreen: ChromeOffscreenApi): Promise<v
 async function synthesizeNeuralInBackground(request: {
   readonly text: string;
   readonly voiceId: string;
+  readonly rate?: number;
 }): Promise<{ readonly mimeType: string; readonly audioBase64: string }> {
   const offscreen = getChromeOffscreen();
   if (offscreen) {
     await ensureOffscreenDocument(offscreen);
     const response = (await browser.runtime.sendMessage({
       type: 'OFFSCREEN_PIPER_SYNTHESIZE',
-      payload: request,
+      payload: {
+        text: request.text,
+        voiceId: request.voiceId,
+        rate: request.rate as import('../shared/types').PlaybackRate | undefined,
+      },
     } satisfies ExtensionMessage)) as MessageResult<{
       readonly mimeType: string;
       readonly audioBase64: string;
@@ -76,7 +81,21 @@ async function synthesizeNeuralInBackground(request: {
     return response.data;
   }
 
-  return getOrCreateFirefoxRuntime().synthesize(request.text, request.voiceId);
+  return getOrCreateFirefoxRuntime().synthesize(request.text, request.voiceId, request.rate);
+}
+
+async function cancelNeuralInBackground(): Promise<void> {
+  const offscreen = getChromeOffscreen();
+  if (offscreen) {
+    if (offscreen.hasDocument && !(await offscreen.hasDocument())) {
+      return;
+    }
+    await browser.runtime
+      .sendMessage({ type: 'OFFSCREEN_PIPER_CANCEL' } satisfies ExtensionMessage)
+      .catch(() => undefined);
+    return;
+  }
+  firefoxRuntime?.cancelPending();
 }
 
 async function warmupNeuralInBackground(voiceId: string): Promise<void> {
@@ -184,7 +203,11 @@ browser.commands?.onCommand.addListener((command) => {
 
 browser.runtime.onMessage.addListener((message: unknown, sender: browser.Runtime.MessageSender) => {
   const msg = message as ExtensionMessage | undefined;
-  if (msg?.type === 'OFFSCREEN_PIPER_SYNTHESIZE' || msg?.type === 'OFFSCREEN_PIPER_WARMUP') {
+  if (
+    msg?.type === 'OFFSCREEN_PIPER_SYNTHESIZE' ||
+    msg?.type === 'OFFSCREEN_PIPER_WARMUP' ||
+    msg?.type === 'OFFSCREEN_PIPER_CANCEL'
+  ) {
     return undefined;
   }
 
@@ -193,6 +216,7 @@ browser.runtime.onMessage.addListener((message: unknown, sender: browser.Runtime
     getSettings: () => getExtensionStorage().getSettings(),
     synthesizeNeural: synthesizeNeuralInBackground,
     warmupNeural: warmupNeuralInBackground,
+    cancelNeural: cancelNeuralInBackground,
     detectLanguage: browser.i18n?.detectLanguage
       ? (text) => browser.i18n.detectLanguage(text)
       : undefined,

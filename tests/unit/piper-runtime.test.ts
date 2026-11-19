@@ -168,6 +168,44 @@ describe('PiperRuntime', () => {
     expect(phonemizeFactoryMock).toHaveBeenCalledTimes(2);
   });
 
+  it('scales length_scale natively by rate and cancels queued synthesis via cancelPending', async () => {
+    const runtime = new PiperRuntime({
+      ortWasmDir: 'ext://wasm/',
+      piperWasm: 'ext://wasm/piper_phonemize.wasm',
+      piperData: 'ext://wasm/piper_phonemize.data',
+    });
+
+    await runtime.synthesize('Velocidad rápida', 'es_MX-claude-high', 1.5);
+    const firstCallFeeds = runMock.mock.calls[0]?.[0] as {
+      scales: { data: Float32Array };
+    };
+    // 1.0 * 0.88 / 1.5 ≈ 0.5867
+    expect(firstCallFeeds.scales.data[1]).toBeCloseTo(0.88 / 1.5, 3);
+
+    // Block first task once it enters ONNX run(), while second task is queued, then call cancelPending()
+    let releaseSlow!: () => void;
+    let markStarted!: () => void;
+    const runStarted = new Promise<void>((resolve) => {
+      markStarted = resolve;
+    });
+    runMock.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          markStarted();
+          releaseSlow = () => resolve({ output: { data: new Float32Array([0.1, -0.1]) } });
+        })
+    );
+
+    const inFlight = runtime.synthesize('En vuelo', 'es_MX-claude-high', 1);
+    const queued = runtime.synthesize('Obsoleto en cola', 'es_MX-claude-high', 1);
+    await runStarted;
+    runtime.cancelPending();
+    releaseSlow();
+
+    await expect(inFlight).resolves.toMatchObject({ mimeType: 'audio/wav' });
+    await expect(queued).rejects.toThrow(/cancelled/i);
+  });
+
   it('rejects empty text cleanly', async () => {
     const runtime = new PiperRuntime({
       ortWasmDir: 'ext://wasm/',

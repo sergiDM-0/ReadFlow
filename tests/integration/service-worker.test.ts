@@ -363,6 +363,7 @@ describe('background message handler', () => {
     expect(synthesizeNeural).toHaveBeenCalledWith({
       text: 'Hola voz suave',
       voiceId: 'es_MX-claude-high',
+      rate: 1,
     });
 
     // Rejects neural synthesis when engine disabled in trusted settings
@@ -474,6 +475,15 @@ describe('background message handler', () => {
     );
     expect(warmupOk).toEqual({ ok: true, data: { voiceId: 'es_MX-claude-high' } });
     expect(warmupNeural).toHaveBeenCalledWith('es_MX-claude-high');
+
+    const cancelNeural = vi.fn();
+    const cancelOk = await handleRuntimeMessage(
+      { type: 'NEURAL_TTS_CANCEL' },
+      { id: 'ext' },
+      { runtimeId: 'ext', cancelNeural }
+    );
+    expect(cancelOk).toEqual({ ok: true, data: { cancelled: true } });
+    expect(cancelNeural).toHaveBeenCalledOnce();
 
     expect(
       (

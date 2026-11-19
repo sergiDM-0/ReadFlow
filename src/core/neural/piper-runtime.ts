@@ -1,7 +1,7 @@
 import * as ort from 'onnxruntime-web/wasm';
 import createPiperPhonemize from '@diffusionstudio/piper-wasm/build/piper_phonemize.js';
 import { findPiperVoiceById, getPiperModelUrls } from './piper-voices';
-import { arrayBufferToBase64, pcmToWavBuffer } from './wav-encoder';
+import { arrayBufferToBase64, pcmToWavBuffer, trimPcmSilence } from './wav-encoder';
 
 interface PiperModelConfig {
   readonly audio: { readonly sample_rate: number };
@@ -38,6 +38,17 @@ export interface PiperSynthesizeResult {
 
 const CACHE_NAME = 'echoselect-piper-models-v1';
 const MAX_AUDIO_CACHE_ENTRIES = 24;
+// Slightly brisker natural cadence (~13% faster synthesis and smoother flow without pitch shift).
+const BASE_CADENCE_SCALE = 0.88;
+const MIN_LENGTH_SCALE = 0.45;
+const MAX_LENGTH_SCALE = 1.6;
+
+function normalizeRate(rate?: number): number {
+  if (typeof rate !== 'number' || !Number.isFinite(rate)) {
+    return 1;
+  }
+  return Math.min(2.5, Math.max(0.5, rate));
+}
 
 function resolveOptimalWasmThreads(): number {
   const g = globalThis as unknown as {
@@ -89,10 +100,15 @@ export class PiperRuntime {
   private readonly audioCache = new Map<string, PiperSynthesizeResult>();
   private warmupTargetVoiceId: string | null = null;
   private warmupPromise: Promise<void> | null = null;
+  private generation = 0;
   private queue: Promise<unknown> = Promise.resolve();
 
   public constructor(wasmPaths: PiperWasmPaths) {
     this.wasmPaths = wasmPaths;
+  }
+
+  public cancelPending(): void {
+    this.generation += 1;
   }
 
   public warmup(voiceId: string): Promise<void> {
@@ -115,13 +131,14 @@ export class PiperRuntime {
     return this.warmupPromise;
   }
 
-  public synthesize(text: string, voiceId: string): Promise<PiperSynthesizeResult> {
+  public synthesize(text: string, voiceId: string, rate = 1): Promise<PiperSynthesizeResult> {
     const trimmed = text.trim();
     if (!trimmed) {
       return Promise.reject(new Error('Cannot synthesize empty text.'));
     }
 
-    const cacheKey = `${voiceId}::${trimmed}`;
+    const safeRate = normalizeRate(rate);
+    const cacheKey = `${voiceId}::${safeRate}::${trimmed}`;
     const cached = this.audioCache.get(cacheKey);
     if (cached) {
       // Refresh LRU ordering.
@@ -130,8 +147,12 @@ export class PiperRuntime {
       return Promise.resolve(cached);
     }
 
+    const requestGen = this.generation;
     const task = this.queue.then(async () => {
-      const result = await this.runSynthesis(trimmed, voiceId);
+      if (requestGen !== this.generation) {
+        throw new Error('Neural synthesis cancelled.');
+      }
+      const result = await this.runSynthesis(trimmed, voiceId, safeRate, requestGen);
       this.rememberAudio(cacheKey, result);
       return result;
     });
@@ -259,8 +280,16 @@ export class PiperRuntime {
     return capturedIds ?? [];
   }
 
-  private async runSynthesis(trimmed: string, voiceId: string): Promise<PiperSynthesizeResult> {
+  private async runSynthesis(
+    trimmed: string,
+    voiceId: string,
+    rate: number,
+    requestGen: number
+  ): Promise<PiperSynthesizeResult> {
     await this.ensureVoiceLoaded(voiceId);
+    if (requestGen !== this.generation) {
+      throw new Error('Neural synthesis cancelled.');
+    }
     if (!this.session || !this.modelConfig) {
       throw new Error('Piper ONNX session failed to initialize.');
     }
@@ -273,6 +302,10 @@ export class PiperRuntime {
     const voiceSpec = findPiperVoiceById(voiceId);
     const speakerId = voiceSpec?.speakerId ?? 0;
     const { noise_scale, length_scale, noise_w } = this.modelConfig.inference;
+    const effectiveLengthScale = Math.min(
+      MAX_LENGTH_SCALE,
+      Math.max(MIN_LENGTH_SCALE, (length_scale * BASE_CADENCE_SCALE) / rate)
+    );
 
     const inputData = BigInt64Array.from(phonemeIds.map((id) => BigInt(id)));
     const feeds: Record<string, ort.Tensor> = {
@@ -280,7 +313,7 @@ export class PiperRuntime {
       input_lengths: new ort.Tensor('int64', BigInt64Array.from([BigInt(phonemeIds.length)]), [1]),
       scales: new ort.Tensor(
         'float32',
-        new Float32Array([noise_scale, length_scale, noise_w]),
+        new Float32Array([noise_scale, effectiveLengthScale, noise_w]),
         [3]
       ),
     };
@@ -298,7 +331,8 @@ export class PiperRuntime {
       throw new Error('Piper ONNX output missing Float32 PCM audio.');
     }
 
-    const wavBuffer = pcmToWavBuffer(outputTensor.data, this.modelConfig.audio.sample_rate);
+    const trimmedPcm = trimPcmSilence(outputTensor.data, this.modelConfig.audio.sample_rate);
+    const wavBuffer = pcmToWavBuffer(trimmedPcm, this.modelConfig.audio.sample_rate);
     return {
       mimeType: 'audio/wav',
       audioBase64: arrayBufferToBase64(wavBuffer),

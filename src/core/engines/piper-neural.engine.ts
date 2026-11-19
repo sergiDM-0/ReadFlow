@@ -95,13 +95,14 @@ class SharedWebAudioPool {
     audioBase64: string,
     initialRate: PlaybackRate,
     signal?: AbortSignal,
-    preDecodedBuffer?: AudioBuffer
+    preDecodedBuffer?: AudioBuffer,
+    synthesizedRate: PlaybackRate = initialRate
   ): AudioPlaybackHandle {
     let source: AudioBufferSourceNode | null = null;
     let activeCtx: AudioContext | null = null;
     let settled = false;
     let stopped = false;
-    let currentRate = initialRate;
+    let currentPlaybackFactor = initialRate / synthesizedRate;
     let rejectFn: ((err: unknown) => void) | null = null;
 
     const cleanupSource = () => {
@@ -174,7 +175,7 @@ class SharedWebAudioPool {
 
               source = ctx.createBufferSource();
               source.buffer = decoded;
-              source.playbackRate.value = currentRate;
+              source.playbackRate.value = currentPlaybackFactor;
               source.connect(ctx.destination);
               source.onended = () => finish();
 
@@ -210,9 +211,9 @@ class SharedWebAudioPool {
       },
 
       setRate(rate: PlaybackRate): void {
-        currentRate = rate;
+        currentPlaybackFactor = rate / synthesizedRate;
         if (source) {
-          source.playbackRate.value = rate;
+          source.playbackRate.value = currentPlaybackFactor;
         }
       },
     };
@@ -232,19 +233,25 @@ export class PiperNeuralEngine implements TTSEngineInterface {
   public readonly capabilities: TTSEngineCapabilities = {
     supportsPauseResume: true,
     supportsLiveRateChange: true,
-    maxChunkChars: 220,
-    streamingFirstChunkChars: 75,
+    maxChunkChars: 175,
+    streamingFirstChunkChars: 48,
   };
 
   private readonly transport: NeuralTransport;
   private readonly customPlayerFactory?: AudioPlayerFactory;
+  private readonly cancelTransport?: () => void;
   private readonly audioPool = new SharedWebAudioPool();
   private readonly prefetchCache = new Map<string, Promise<PreparedNeuralAudio>>();
   private activePlayer: AudioPlaybackHandle | null = null;
 
-  public constructor(transport: NeuralTransport, createPlayer?: AudioPlayerFactory) {
+  public constructor(
+    transport: NeuralTransport,
+    createPlayer?: AudioPlayerFactory,
+    cancelTransport?: () => void
+  ) {
     this.transport = transport;
     this.customPlayerFactory = createPlayer;
+    this.cancelTransport = cancelTransport;
   }
 
   public async isAvailable(): Promise<boolean> {
@@ -259,7 +266,7 @@ export class PiperNeuralEngine implements TTSEngineInterface {
     const trimmed = text.trim();
     if (!trimmed) return;
     const voiceId = options.voiceId || resolvePiperVoiceForLang(options.lang, {}).id;
-    const key = `${voiceId}::${trimmed}`;
+    const key = `${voiceId}::${options.rate}::${trimmed}`;
     if (this.prefetchCache.has(key)) return;
 
     if (this.prefetchCache.size >= MAX_PREFETCH_ENTRIES) {
@@ -293,7 +300,7 @@ export class PiperNeuralEngine implements TTSEngineInterface {
 
     const trimmed = text.trim();
     const voiceId = options.voiceId || resolvePiperVoiceForLang(options.lang, {}).id;
-    const cacheKey = `${voiceId}::${trimmed}`;
+    const cacheKey = `${voiceId}::${options.rate}::${trimmed}`;
 
     options.onProgress?.('Preparando voz neuronal...');
 
@@ -357,6 +364,7 @@ export class PiperNeuralEngine implements TTSEngineInterface {
     this.activePlayer?.stop();
     this.activePlayer = null;
     this.prefetchCache.clear();
+    this.cancelTransport?.();
   }
 
   public dispose(): void {

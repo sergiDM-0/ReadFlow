@@ -151,11 +151,13 @@ export type ExtensionMessage =
         readonly voiceId?: string;
       };
     }
+  | { readonly type: 'NEURAL_TTS_CANCEL' }
   | {
       readonly type: 'OFFSCREEN_PIPER_SYNTHESIZE';
       readonly payload: {
         readonly text: string;
         readonly voiceId: string;
+        readonly rate?: PlaybackRate;
       };
     }
   | {
@@ -164,6 +166,7 @@ export type ExtensionMessage =
         readonly voiceId: string;
       };
     }
+  | { readonly type: 'OFFSCREEN_PIPER_CANCEL' }
   | {
       readonly type: 'LOCAL_TTS_SYNTHESIZE';
       readonly payload: {
