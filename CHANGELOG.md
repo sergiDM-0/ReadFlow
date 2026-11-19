@@ -5,6 +5,19 @@ All notable changes to **EchoSelect TTS** will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - 2026-11-19
+
+### Added
+
+- **Customizable Dock / Toolbar Icon & Live Color Theming**:
+  - New `icon-renderer.ts` renders the EchoSelect brand icon dynamically via `OffscreenCanvas` (`browser.action.setIcon`) and inline SVG (`createBrandIconSvg`), syncing custom icon background, symbol foreground, UI accent color, theme (`auto` / `light` / `dark`), and `ON`/`OFF` toolbar badge in real time across Chrome, Brave, Edge, Opera, Vivaldi, Firefox, Zen, LibreWolf, and Floorp.
+  - Added `"default_area": "navbar"` in `manifest.firefox.json` so Firefox and Gecko variants pin EchoSelect directly to the main toolbar/dock on install.
+- **Redesigned Reverso-Style Dock Panel (`popup.html` / `popup.css` / `popup-controller.ts`)**:
+  - Header with live dynamic SVG icon, active domain subtitle, and pill global enable switch.
+  - Quick-read box to speak pasted/typed text or the active tab's selection directly from the dock panel (`▶ Leer ahora` / `⏹ Detener`).
+  - Clean 3-tab navigation (`General`, `Apariencia`, `Avanzado`) with tactile speed pills (`0.75x`–`2x`), live dock/floating-button color preview, 6 one-click color presets, custom color pickers, and reset button — keeping injected UI + Popup well under the 200 KB budget.
+- **Comprehensive Documentation Overhaul**: updated `README.md` and `CONTRIBUTING.md` with dock pinning steps for Chromium and Gecko browsers, appearance customization guide, procedural streaming architecture, and verification checklist.
+
 ## [1.2.0] - 2026-11-19
 
 ### Added

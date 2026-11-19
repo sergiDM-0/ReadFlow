@@ -1,31 +1,38 @@
 # EchoSelect TTS
 
-> **Lector universal de texto seleccionado 100% local, liviano (<200 KB) y de código abierto para Chrome, Firefox, Brave y Edge.**
+> **Lector de voz neuronal 100 % local, rápido, personalizable y de código abierto para Chrome, Firefox, Brave, Edge, Opera, Zen, Floorp y LibreWolf.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Manifest V3](https://img.shields.io/badge/Manifest-V3-green.svg)](manifest.chrome.json)
 [![Privacy](https://img.shields.io/badge/Privacy-100%25%20Local-success.svg)](SECURITY.md)
+[![UI Bundle](https://img.shields.io/badge/Injected%20UI%20%2B%20Popup-%3C%20130%20KB-brightgreen.svg)](scripts/check-size.mjs)
 
-## ¿Qué hace EchoSelect TTS?
+## Características principales
 
-- **Disparador flotante universal (estilo DeepL):** Subraya texto en cualquier página web y haz clic en el botón flotante (aislado en Shadow DOM) para escucharlo al instante.
-- **Cola inteligente de oraciones:** Usa `Intl.Segmenter` (con protección de abreviaturas como `Sr.`, `Dr.`, `v1.2.3`, `etc.`) y sub-división de frases largas para evitar cortes de ~15s en Chromium.
-- **Mini-reproductor accesible:** Play/Pausa, Detener, Oración anterior/siguiente, control de velocidad (`0.75x` – `2x`) e indicador de estado con soporte para modo claro y oscuro.
-- **Detección automática de idioma y voces locales:** Selecciona automáticamente tu voz local preferida según el idioma del texto.
-- **Limpieza inteligente de texto:** Omite bloques `<pre><code>` / Markdown, URLs largas y emojis repetitivos.
-- **Auto-lectura en tiempo real para Google Gemini (`gemini.google.com`):** Botón *toggle* para leer respuestas en *streaming* párrafo por párrafo sin repetir contenido ni leer código.
-- **Arquitectura Pluggable (`TTSEngineInterface`):** Usa `WebSpeechEngine` (100% nativo del navegador) por defecto, o conecta un motor neuronal local en `localhost` / `127.0.0.1` como **Piper TTS** o **Kokoro**.
-- **Atajos y control por dominio:** `Alt + S` para leer/detener, menú contextual y lista negra de sitios desde el popup.
+### Voz neuronal suave y arranque casi instantáneo
 
-## Privacidad y Ligereza
+- **Voz Neuronal Local por defecto (Piper ONNX + WebAssembly):** Reemplaza las voces robóticas del sistema operativo (como `eSpeak` en Linux) por voces neuronales suaves (`es_MX-claude-high` para español, `en_US-hfc_female-medium` para inglés y catálogo curado en ES/EN/PT/FR/DE/IT). El modelo se descarga una única vez en el `Cache Storage` del navegador y luego funciona **100 % offline**.
+- **Lectura procedural incremental para textos grandes:** No procesa documentos enormes de golpe. Limpia y segmenta por ventanas (~640 caracteres) bajo demanda con una **rampa de arranque rápido** (`48 → 95 → 140 → 175` caracteres), pre-sintetizando los 2 fragmentos siguientes en segundo plano sobre un **`AudioContext` persistente** para transiciones continuas (_gapless_).
+- **Velocidad natural sin distorsión de tono:** Ajusta el `length_scale` nativo de Piper ONNX (`0.75x` – `2x`) recortando silencios muertos iniciales y finales, y cancela en `0 ms` tareas pendientes al cambiar de texto.
+- **Motores intercambiables (`TTSEngineInterface`):** Elige entre **Piper Neuronal Local**, **Web Speech API** (con ranking de voces naturales y pausa/reanudación corregida en Linux) o un **Endpoint HTTP Local** (`localhost` / `127.0.0.1`) para servidores propios de Piper o Kokoro.
 
-- **Cero telemetría y cero servidores externos.**
-- Los endpoints HTTP locales están restringidos estrictamente a direcciones loopback (`localhost`, `127.0.0.1`, `[::1]`) con `redirect: 'error'`.
-- Cero frameworks pesados en el *content script* (Vanilla TypeScript + Shadow DOM + CSS puro).
+### Interfaz moderna, anclable y personalizable (sin dejar de ser liviana)
 
-## Instalación en modo desarrollador (3 pasos)
+- **Icono anclable en el dock / barra de herramientas con colores personalizables en vivo:**
+  - Personaliza el **color de fondo del icono**, el **color del símbolo**, el **color de acento de la UI** y el **tema** (`Automático`, `Claro`, `Oscuro`) desde 6 paletas rápidas o selectores libres.
+  - Los cambios se reflejan en tiempo real en el **icono anclado del navegador** (`browser.action.setIcon`), en el **popup** y en todos los controles flotantes en pestañas abiertas, además de mostrar insignia `ON` / `OFF` de estado.
+- **Panel de configuración rápido (estilo Reverso):** Al hacer clic en el icono del dock dispones de:
+  - **Caja de lectura rápida:** escribe o pega cualquier texto para escucharlo al instante, o pulsa **▶ Leer ahora** para leer la selección de la pestaña activa / **⏹ Detener**.
+  - **3 pestañas limpias:** `General` (auto-lectura, velocidad en píldoras, voces), `Apariencia` (vista previa del dock, paletas, selectores de color y tema) y `Avanzado` (motor, servidor local y lista negra de sitios).
+- **Auto-lectura universal ON / OFF:** Píldora flotante limpia con icono SVG (sin emojis duplicados) disponible en cualquier web y sincronizada con el popup. Al activarla en **ON**, todo texto que selecciones se lee automáticamente; en `gemini.google.com` además lee respuestas nuevas en streaming.
+- **Mini-reproductor flotante arrastrable:** Ventana compacta en Shadow DOM que puedes arrastrar a cualquier esquina con el ratón (`⋮⋮`) o mover con teclado (flechas + `Inicio` para restablecer), con Play/Pausa, Detener, Anterior/Siguiente, velocidad en vivo y progreso procedural (`1/4+`).
+- **Limpieza inteligente:** Omite bloques de código `<pre><code>` / Markdown, URLs largas y emojis repetitivos.
 
-Requisitos: **Node.js >= 20** y **npm**.
+---
+
+## Instalación y anclaje en el dock / barra de herramientas
+
+Requisitos para compilar desde el código fuente: **Node.js >= 20** y **npm**.
 
 ```bash
 npm install
@@ -33,68 +40,104 @@ npm run build
 npm run check:size
 ```
 
-### Chrome / Brave / Edge
-1. Abre `chrome://extensions` y activa **Modo de desarrollador**.
-2. Haz clic en **Cargar descomprimida** (*Load unpacked*).
-3. Selecciona la carpeta `dist/chrome`.
+### Google Chrome, Brave, Microsoft Edge, Opera y Vivaldi
 
-### Firefox
+1. Abre la página de extensiones (`chrome://extensions`, `brave://extensions`, `edge://extensions` u `opera://extensions`).
+2. Activa **Modo de desarrollador** (_Developer mode_).
+3. Haz clic en **Cargar descomprimida** (_Load unpacked_) y selecciona la carpeta `dist/chrome`.
+4. **Cómo anclar al dock/barra:** Haz clic en el icono de piezas de rompecabezas **🧩 (Extensiones)** en la esquina superior derecha y pulsa el icono de **chincheta 📌 (Fijar)** junto a **EchoSelect TTS**.
+
+### Mozilla Firefox, Zen Browser, LibreWolf y Floorp
+
 1. Abre `about:debugging#/runtime/this-firefox`.
-2. Haz clic en **Cargar complemento temporal...** (*Load Temporary Add-on*).
-3. Selecciona `dist/firefox/manifest.json`.
+2. Haz clic en **Cargar complemento temporal...** (_Load Temporary Add-on..._).
+3. Selecciona el archivo `dist/firefox/manifest.json`.
+4. **Anclaje automático en el dock:** `manifest.firefox.json` incluye `"default_area": "navbar"`, por lo que el icono de **EchoSelect TTS** aparece **anclado directamente en la barra principal**. Si lo ocultaste, haz clic en **🧩** → menú del engranaje → **Anclar a la barra de herramientas**.
+
+---
+
+## Uso rápido y atajos
+
+| Acción                            | Cómo hacerlo                                                                                                                    |
+| :-------------------------------- | :------------------------------------------------------------------------------------------------------------------------------ |
+| **Leer selección puntual**        | Selecciona texto en cualquier página y pulsa el botón flotante **🔊** o presiona **`Alt + S`**.                                 |
+| **Auto-lectura al seleccionar**   | Activa la píldora **Auto-lectura: ON** en pantalla (o en el panel del dock). Cualquier texto que subrayes se leerá al instante. |
+| **Lectura rápida desde el dock**  | Haz clic en el icono anclado, escribe/pega texto (o déjalo vacío para leer tu selección) y pulsa **▶ Leer ahora**.              |
+| **Mover el reproductor flotante** | Arrastra desde el asa **`⋮⋮`** o enfócala con `Tab` y usa las flechas (`Inicio` restablece la posición).                        |
+| **Personalizar icono y colores**  | Icono del dock → pestaña **Apariencia** → elige una paleta o colores personalizados.                                            |
+| **Detener lectura**               | Pulsa **`Alt + S`**, el botón **⏹** del reproductor o **⏹ Detener** en el panel del dock.                                       |
+
+---
+
+## Privacidad, seguridad y presupuesto de peso
+
+- **Cero telemetría y cero APIs externas de texto:** Tu texto nunca sale de tu equipo. Las únicas descargas opcionales son los pesos abiertos `.onnx` de Piper desde HuggingFace (una sola vez, guardados localmente en `Cache Storage`).
+- **Aislamiento total:** Toda la UI inyectada corre en un `ShadowRoot` cerrado en estilos (`:host { all: initial }`), sin `innerHTML` y con validación estricta de colores hexadecimales (`#RRGGBB`) y URLs locales (`localhost` / `127.0.0.1` / `[::1]` con `redirect: 'error'`).
+- **Súper liviana:** Cero React/Vue/frameworks en el _content script_ y popup.
+  - **UI inyectada + Popup + Iconos:** ~**122 KB** (muy por debajo del límite de **200 KB** verificado por `npm run check:size`).
+  - **Runtime local WASM (`wasm/`):** empaquetado localmente en la extensión para cumplir CSP estricto de MV3 (`wasm-unsafe-eval`, cero ejecución remota).
+
+---
 
 ## Scripts de desarrollo y verificación
 
 ```bash
-npm run typecheck      # tsc --noEmit
-npm run lint           # ESLint
+npm run format:check   # Verifica formato con Prettier
+npm run typecheck      # tsc --noEmit (strict mode)
+npm run lint           # ESLint (0 warnings)
 npm test               # Pruebas unitarias e integración (Vitest + happy-dom)
-npm run test:coverage  # Cobertura (umbral mínimo 80%)
-npm run build          # Genera dist/chrome y dist/firefox
-npm run check:size     # Verifica que ambos bundles pesen < 200 KB
+npm run test:coverage  # Cobertura (umbral mínimo 80 % en todas las métricas)
+npm run build          # Compila dist/chrome y dist/firefox
+npm run check:size     # Verifica presupuesto < 200 KB en UI + Popup
 npm run test:e2e       # Pruebas E2E en Chromium real (Playwright)
 ```
 
-## Arquitectura
+---
+
+## Arquitectura del proyecto
 
 ```text
 src/
 ├── background/
-│   ├── message-handler.ts      # Detección de idioma y proxy loopback validado
-│   └── service-worker.ts       # Menú contextual, atajo Alt+S y mensajería MV3
+│   ├── message-handler.ts      # Mensajería validada (síntesis, warmup, cancel, idioma, loopback)
+│   └── service-worker.ts       # Icono dinámico del dock, badge, menú contextual, Alt+S y Piper Firefox
+├── offscreen/
+│   ├── offscreen.html          # Documento MV3 Offscreen (Chrome/Brave/Edge)
+│   └── offscreen.ts            # Host del runtime ONNX/WASM fuera del Service Worker
 ├── content/
-│   ├── index.ts                # Orquestador del content script
-│   ├── selection-handler.ts    # Detección de selección y clamping al viewport
+│   ├── index.ts                # Entrada del content script
+│   ├── app.ts                  # Orquestador: auto-lectura, streaming procedural, warmup y temas
+│   ├── selection-handler.ts    # Detección de selección y posicionamiento clamped al viewport
 │   ├── adapters/
-│   │   ├── gemini-selectors.ts # Selectores aislados (fácil mantenimiento)
+│   │   ├── gemini-selectors.ts # Selectores aislados para gemini.google.com
 │   │   └── gemini-adapter.ts   # MutationObserver con deduplicación en streaming
 │   └── ui/
-│       ├── shadow-host.ts      # Aislamiento Shadow DOM (:host { all: initial })
+│       ├── shadow-host.ts      # Shadow DOM limpio (limpia hosts huérfanos + aplica colores CSS)
 │       ├── floating-btn.ts     # Botón flotante accesible
-│       ├── mini-player.ts      # Controles de reproducción + ARIA live status
-│       └── styles.ts           # Variables CSS (light/dark + reduced motion)
+│       ├── mini-player.ts      # Reproductor flotante arrastrable (pointer + teclado + ARIA live)
+│       └── styles.ts           # Variables CSS (light/dark, acento dinámico, reduced motion)
 ├── core/
-│   ├── cleaner.ts              # Limpieza de Markdown, código y URLs
-│   ├── segmenter.ts            # Segmentación con Intl.Segmenter + fallback
-│   ├── language-detector.ts    # i18n.detectLanguage + heurística local
-│   ├── tts-manager.ts          # Cola inmutable de oraciones y estado
+│   ├── cleaner.ts              # Limpieza de Markdown, código, URLs y emojis
+│   ├── segmenter.ts            # Intl.Segmenter + rampa streaming (48 → 95 → 140 → 175 chars)
+│   ├── procedural-stream.ts    # Generador incremental por bloques (~640 chars) para textos largos
+│   ├── language-detector.ts    # Detección rápida local + fallback browser.i18n.detectLanguage
+│   ├── tts-manager.ts          # Cola de oraciones, buffer procedural y lookahead de 2 chunks
+│   ├── neural/
+│   │   ├── piper-voices.ts     # Catálogo curado de voces neuronales suaves
+│   │   ├── piper-runtime.ts    # Runtime ONNX + phonemizer WASM reutilizado + LRU + length_scale
+│   │   └── wav-encoder.ts      # Codificador WAV PCM 16-bit + recorte de silencios muertos
 │   └── engines/
-│       ├── engine.interface.ts # Estrategia TTSEngineInterface
-│       ├── local-url.ts        # Validación estricta de endpoints loopback
-│       ├── web-speech.engine.ts
-│       └── local-http.engine.ts
-├── popup/                      # Configuración, voces y lista negra por dominio
+│       ├── engine.interface.ts # Contrato TTSEngineInterface
+│       ├── piper-neural.engine.ts # AudioContext persistente + pre-decodificación gapless
+│       ├── web-speech.engine.ts   # Fallback OS con ranking natural y fix de pausa en Linux
+│       ├── local-http.engine.ts   # Cliente HTTP local (Piper / Kokoro)
+│       └── local-url.ts           # Validación estricta de loopback
+├── popup/                      # Panel tipo Reverso (lectura rápida, 3 pestañas, personalizador)
 └── shared/
-    ├── storage.ts              # Wrapper de browser.storage (webextension-polyfill)
+    ├── icon-renderer.ts        # Renderizador SVG + OffscreenCanvas del icono del dock y paletas
+    ├── storage.ts              # Persistencia segura con cola de escritura y sanitización hex
     └── types.ts                # Contratos TypeScript inmutables
 ```
-
-## Roadmap
-
-- [ ] Adaptadores de auto-lectura para ChatGPT y Claude.
-- [ ] Resaltado sincronizado palabra/oración en pantalla.
-- [ ] Soporte mejorado para lectores PDF embebidos e `iframe`.
-- [ ] Traducción del popup a inglés y portugués.
 
 ## Contribuir
 
