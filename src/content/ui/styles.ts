@@ -12,13 +12,13 @@ export const SHADOW_UI_STYLES = `
 
   --es-bg: #ffffff;
   --es-bg-hover: #f3f4f6;
-  --es-border: #d1d5db;
+  --es-border: #6b7280;
   --es-text: #111827;
   --es-text-muted: #4b5563;
-  --es-accent: #2563eb;
-  --es-accent-hover: #1d4ed8;
+  --es-accent: #1d4ed8;
+  --es-accent-hover: #1e40af;
   --es-accent-fg: #ffffff;
-  --es-focus-ring: #2563eb;
+  --es-focus-ring: #1d4ed8;
   --es-shadow: 0 8px 24px rgba(15, 23, 42, 0.16);
   --es-status-active: #16a34a;
   --es-status-paused: #d97706;
@@ -29,11 +29,11 @@ export const SHADOW_UI_STYLES = `
   :host(:not([data-theme="light"])) {
     --es-bg: #18181b;
     --es-bg-hover: #27272a;
-    --es-border: #3f3f46;
+    --es-border: #71717a;
     --es-text: #f4f4f5;
     --es-text-muted: #a1a1aa;
-    --es-accent: #3b82f6;
-    --es-accent-hover: #60a5fa;
+    --es-accent: #1d4ed8;
+    --es-accent-hover: #1e40af;
     --es-accent-fg: #ffffff;
     --es-focus-ring: #93c5fd;
     --es-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
@@ -43,11 +43,11 @@ export const SHADOW_UI_STYLES = `
 :host([data-theme="dark"]) {
   --es-bg: #18181b;
   --es-bg-hover: #27272a;
-  --es-border: #3f3f46;
+  --es-border: #71717a;
   --es-text: #f4f4f5;
   --es-text-muted: #a1a1aa;
-  --es-accent: #3b82f6;
-  --es-accent-hover: #60a5fa;
+  --es-accent: #1d4ed8;
+  --es-accent-hover: #1e40af;
   --es-accent-fg: #ffffff;
   --es-focus-ring: #93c5fd;
   --es-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
@@ -99,10 +99,46 @@ export const SHADOW_UI_STYLES = `
   gap: 6px;
   padding: 8px 12px;
   border: 1px solid var(--es-border);
-  border-radius: 999px;
+  border-radius: 16px;
   background: var(--es-bg);
   color: var(--es-text);
   box-shadow: var(--es-shadow);
+  user-select: none;
+}
+
+.es-player[data-dragging="true"] {
+  box-shadow: 0 14px 36px rgba(15, 23, 42, 0.28);
+}
+
+.es-drag-handle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 30px;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--es-text-muted);
+  cursor: grab;
+  touch-action: none;
+  font-size: 14px;
+  letter-spacing: -1px;
+}
+
+.es-drag-handle:hover {
+  background: var(--es-bg-hover);
+  color: var(--es-text);
+}
+
+.es-drag-handle:active {
+  cursor: grabbing;
+}
+
+.es-drag-handle:focus-visible {
+  outline: 2px solid var(--es-focus-ring);
+  outline-offset: 2px;
 }
 
 .es-player[hidden],

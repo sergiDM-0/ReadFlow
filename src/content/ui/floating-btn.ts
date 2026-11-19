@@ -40,7 +40,9 @@ export class FloatingButton {
     this.button.type = 'button';
     this.button.className = 'es-floating-btn';
     this.button.setAttribute('data-es-role', 'floating-trigger');
-    this.button.setAttribute('aria-label', 'Read selected text');
+    this.button.setAttribute('lang', 'es');
+    this.button.setAttribute('aria-label', 'Leer texto seleccionado');
+    this.button.setAttribute('aria-keyshortcuts', 'Alt+S');
     this.button.title = 'EchoSelect TTS (Alt+S)';
     this.button.hidden = true;
     this.button.appendChild(createSpeakerSvg());

@@ -35,7 +35,9 @@ export class ShadowHost {
     if (path && path.includes(this.hostElement)) {
       return true;
     }
-    return target === this.hostElement || (target instanceof Node && this.shadowRoot.contains(target));
+    return (
+      target === this.hostElement || (target instanceof Node && this.shadowRoot.contains(target))
+    );
   }
 
   public destroy(): void {
