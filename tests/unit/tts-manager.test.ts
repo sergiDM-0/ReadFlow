@@ -162,25 +162,38 @@ describe('TTSManager', () => {
     expect(localMgr.getState().status).toBe('playing');
     localMgr.stop();
 
-    // Live rate change + prefetch + loading->playing transitions (PiperNeuralEngine path)
+    // Live rate change + prefetch ordering (speak BEFORE prefetch) + 2-chunk lookahead
     const setPlaybackRate = vi.fn();
-    const prefetch = vi.fn();
+    const callOrder: string[] = [];
+    const prefetch = vi.fn((text: string) => {
+      callOrder.push(`prefetch:${text}`);
+    });
     const liveDeferred = createDeferred();
     const liveEngine: TTSEngineInterface = {
       ...engine,
-      capabilities: { supportsPauseResume: true, supportsLiveRateChange: true, maxChunkChars: 360 },
+      capabilities: {
+        supportsPauseResume: true,
+        supportsLiveRateChange: true,
+        maxChunkChars: 220,
+        streamingFirstChunkChars: 75,
+      },
       setPlaybackRate,
       prefetch,
-      speak: vi.fn((_text, opts) => {
+      speak: vi.fn((text, opts) => {
+        callOrder.push(`speak:${text}`);
         opts.onProgress?.('Preparando voz...');
         opts.onPlaying?.();
         return liveDeferred.promise;
       }),
     };
     const liveMgr = new TTSManager(liveEngine);
-    void liveMgr.play(['Uno.', 'Dos.'], { lang: 'es', rate: 1, source: 'selection' });
+    void liveMgr.play(['Uno.', 'Dos.', 'Tres.', 'Cuatro.'], {
+      lang: 'es',
+      rate: 1,
+      source: 'selection',
+    });
     await Promise.resolve();
-    expect(prefetch).toHaveBeenCalledOnce();
+    expect(callOrder).toEqual(['speak:Uno.', 'prefetch:Dos.', 'prefetch:Tres.']);
     liveMgr.setRate(1.5);
     expect(setPlaybackRate).toHaveBeenCalledWith(1.5);
     liveDeferred.resolve();

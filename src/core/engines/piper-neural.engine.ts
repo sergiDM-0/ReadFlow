@@ -34,8 +34,16 @@ export interface AudioPlaybackHandle {
 export type AudioPlayerFactory = (
   audioBase64: string,
   rate: PlaybackRate,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  preDecodedBuffer?: AudioBuffer
 ) => AudioPlaybackHandle;
+
+interface PreparedNeuralAudio {
+  readonly response: NeuralSynthesizeResponse;
+  readonly decodedBuffer?: AudioBuffer;
+}
+
+const MAX_PREFETCH_ENTRIES = 4;
 
 function decodeBase64ToArrayBuffer(base64: string): ArrayBuffer {
   const binary = atob(base64);
@@ -46,139 +54,177 @@ function decodeBase64ToArrayBuffer(base64: string): ArrayBuffer {
   return bytes.buffer;
 }
 
-function createWebAudioPlayer(
-  audioBase64: string,
-  initialRate: PlaybackRate,
-  signal?: AbortSignal
-): AudioPlaybackHandle {
-  const AudioCtx =
-    typeof window !== 'undefined'
-      ? (window.AudioContext ??
-        (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext)
-      : undefined;
+function getAudioContextCtor(): typeof AudioContext | undefined {
+  if (typeof window === 'undefined') {
+    return undefined;
+  }
+  return (
+    window.AudioContext ??
+    (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
+  );
+}
 
-  let ctx: AudioContext | null = null;
-  let source: AudioBufferSourceNode | null = null;
-  let settled = false;
-  let stopped = false;
-  let currentRate = initialRate;
-  let rejectFn: ((err: unknown) => void) | null = null;
+class SharedWebAudioPool {
+  private ctx: AudioContext | null = null;
 
-  const cleanup = () => {
-    if (source) {
-      source.onended = null;
-      try {
-        source.disconnect();
-      } catch {
-        // Ignore disconnect on already-stopped node.
-      }
-      source = null;
+  public getContext(): AudioContext | null {
+    const AudioCtx = getAudioContextCtor();
+    if (!AudioCtx) {
+      return null;
     }
-    if (ctx) {
-      const closing = ctx;
-      ctx = null;
+    if (!this.ctx || this.ctx.state === 'closed') {
+      this.ctx = new AudioCtx();
+    }
+    return this.ctx;
+  }
+
+  public async tryPreDecode(audioBase64: string): Promise<AudioBuffer | undefined> {
+    const ctx = this.ctx;
+    if (!ctx || ctx.state === 'closed') {
+      return undefined;
+    }
+    try {
+      const rawBuffer = decodeBase64ToArrayBuffer(audioBase64);
+      return await ctx.decodeAudioData(rawBuffer.slice(0));
+    } catch {
+      return undefined;
+    }
+  }
+
+  public createPlayer(
+    audioBase64: string,
+    initialRate: PlaybackRate,
+    signal?: AbortSignal,
+    preDecodedBuffer?: AudioBuffer
+  ): AudioPlaybackHandle {
+    let source: AudioBufferSourceNode | null = null;
+    let activeCtx: AudioContext | null = null;
+    let settled = false;
+    let stopped = false;
+    let currentRate = initialRate;
+    let rejectFn: ((err: unknown) => void) | null = null;
+
+    const cleanupSource = () => {
+      if (source) {
+        source.onended = null;
+        try {
+          source.disconnect();
+        } catch {
+          // Ignore disconnect on already-stopped node.
+        }
+        source = null;
+      }
+    };
+
+    const abortNow = () => {
+      stopped = true;
+      if (source) {
+        source.onended = null;
+        try {
+          source.stop();
+        } catch {
+          // Ignore stop on unstarted node.
+        }
+      }
+      cleanupSource();
+      if (!settled && rejectFn) {
+        settled = true;
+        rejectFn(new TTSError('ABORTED', 'Neural playback cancelled.'));
+      }
+    };
+
+    return {
+      play: (): Promise<void> => {
+        if (signal?.aborted || stopped) {
+          return Promise.reject(new TTSError('ABORTED', 'Neural playback aborted.'));
+        }
+        const ctx = this.getContext();
+        if (!ctx) {
+          return Promise.reject(new TTSError('ENGINE_UNAVAILABLE', 'Web Audio API unavailable.'));
+        }
+        activeCtx = ctx;
+
+        return new Promise<void>((resolve, reject) => {
+          rejectFn = reject;
+          const onAbort = () => abortNow();
+          signal?.addEventListener('abort', onAbort, { once: true });
+
+          const finish = (err?: unknown) => {
+            signal?.removeEventListener('abort', onAbort);
+            if (settled) return;
+            settled = true;
+            cleanupSource();
+            if (err) {
+              reject(err);
+            } else {
+              resolve();
+            }
+          };
+
+          void (async () => {
+            try {
+              const decoded =
+                preDecodedBuffer ??
+                (await ctx.decodeAudioData(decodeBase64ToArrayBuffer(audioBase64).slice(0)));
+
+              if (signal?.aborted || stopped || ctx.state === 'closed') {
+                finish(new TTSError('ABORTED', 'Neural playback cancelled.'));
+                return;
+              }
+
+              source = ctx.createBufferSource();
+              source.buffer = decoded;
+              source.playbackRate.value = currentRate;
+              source.connect(ctx.destination);
+              source.onended = () => finish();
+
+              if (ctx.state === 'suspended') {
+                await ctx.resume();
+              }
+              source.start(0);
+            } catch (err) {
+              finish(
+                err instanceof TTSError
+                  ? err
+                  : new TTSError('SYNTHESIS_FAILED', 'Failed to decode neural audio.')
+              );
+            }
+          })();
+        });
+      },
+
+      pause(): void {
+        if (activeCtx && activeCtx.state === 'running') {
+          void activeCtx.suspend().catch(() => undefined);
+        }
+      },
+
+      resume(): void {
+        if (activeCtx && activeCtx.state === 'suspended') {
+          void activeCtx.resume().catch(() => undefined);
+        }
+      },
+
+      stop(): void {
+        abortNow();
+      },
+
+      setRate(rate: PlaybackRate): void {
+        currentRate = rate;
+        if (source) {
+          source.playbackRate.value = rate;
+        }
+      },
+    };
+  }
+
+  public dispose(): void {
+    if (this.ctx) {
+      const closing = this.ctx;
+      this.ctx = null;
       void closing.close().catch(() => undefined);
     }
-  };
-
-  const abortNow = () => {
-    stopped = true;
-    if (source) {
-      source.onended = null;
-      try {
-        source.stop();
-      } catch {
-        // Ignore stop on unstarted node.
-      }
-    }
-    cleanup();
-    if (!settled && rejectFn) {
-      settled = true;
-      rejectFn(new TTSError('ABORTED', 'Neural playback cancelled.'));
-    }
-  };
-
-  return {
-    play(): Promise<void> {
-      if (signal?.aborted || stopped) {
-        return Promise.reject(new TTSError('ABORTED', 'Neural playback aborted.'));
-      }
-      if (!AudioCtx) {
-        return Promise.reject(new TTSError('ENGINE_UNAVAILABLE', 'Web Audio API unavailable.'));
-      }
-
-      return new Promise<void>((resolve, reject) => {
-        rejectFn = reject;
-        const onAbort = () => abortNow();
-        signal?.addEventListener('abort', onAbort, { once: true });
-
-        const finish = (err?: unknown) => {
-          signal?.removeEventListener('abort', onAbort);
-          if (settled) return;
-          settled = true;
-          cleanup();
-          if (err) {
-            reject(err);
-          } else {
-            resolve();
-          }
-        };
-
-        void (async () => {
-          try {
-            ctx = new AudioCtx();
-            const rawBuffer = decodeBase64ToArrayBuffer(audioBase64);
-            const decoded = await ctx.decodeAudioData(rawBuffer.slice(0));
-
-            if (signal?.aborted || stopped || !ctx) {
-              finish(new TTSError('ABORTED', 'Neural playback cancelled.'));
-              return;
-            }
-
-            source = ctx.createBufferSource();
-            source.buffer = decoded;
-            source.playbackRate.value = currentRate;
-            source.connect(ctx.destination);
-            source.onended = () => finish();
-
-            if (ctx.state === 'suspended') {
-              await ctx.resume();
-            }
-            source.start(0);
-          } catch (err) {
-            finish(
-              err instanceof TTSError
-                ? err
-                : new TTSError('SYNTHESIS_FAILED', 'Failed to decode neural audio.')
-            );
-          }
-        })();
-      });
-    },
-
-    pause(): void {
-      if (ctx && ctx.state === 'running') {
-        void ctx.suspend().catch(() => undefined);
-      }
-    },
-
-    resume(): void {
-      if (ctx && ctx.state === 'suspended') {
-        void ctx.resume().catch(() => undefined);
-      }
-    },
-
-    stop(): void {
-      abortNow();
-    },
-
-    setRate(rate: PlaybackRate): void {
-      currentRate = rate;
-      if (source) {
-        source.playbackRate.value = rate;
-      }
-    },
-  };
+  }
 }
 
 export class PiperNeuralEngine implements TTSEngineInterface {
@@ -186,20 +232,19 @@ export class PiperNeuralEngine implements TTSEngineInterface {
   public readonly capabilities: TTSEngineCapabilities = {
     supportsPauseResume: true,
     supportsLiveRateChange: true,
-    maxChunkChars: 360,
+    maxChunkChars: 220,
+    streamingFirstChunkChars: 75,
   };
 
   private readonly transport: NeuralTransport;
-  private readonly createPlayer: AudioPlayerFactory;
-  private readonly prefetchCache = new Map<string, Promise<NeuralSynthesizeResponse>>();
+  private readonly customPlayerFactory?: AudioPlayerFactory;
+  private readonly audioPool = new SharedWebAudioPool();
+  private readonly prefetchCache = new Map<string, Promise<PreparedNeuralAudio>>();
   private activePlayer: AudioPlaybackHandle | null = null;
 
-  public constructor(
-    transport: NeuralTransport,
-    createPlayer: AudioPlayerFactory = createWebAudioPlayer
-  ) {
+  public constructor(transport: NeuralTransport, createPlayer?: AudioPlayerFactory) {
     this.transport = transport;
-    this.createPlayer = createPlayer;
+    this.customPlayerFactory = createPlayer;
   }
 
   public async isAvailable(): Promise<boolean> {
@@ -217,22 +262,28 @@ export class PiperNeuralEngine implements TTSEngineInterface {
     const key = `${voiceId}::${trimmed}`;
     if (this.prefetchCache.has(key)) return;
 
-    // Keep cache bounded to 3 upcoming sentences to avoid memory growth.
-    if (this.prefetchCache.size >= 3) {
+    if (this.prefetchCache.size >= MAX_PREFETCH_ENTRIES) {
       const oldestKey = this.prefetchCache.keys().next().value;
       if (oldestKey) this.prefetchCache.delete(oldestKey);
     }
 
-    const reqPromise = this.transport({
+    const preparedPromise: Promise<PreparedNeuralAudio> = this.transport({
       text: trimmed,
       lang: options.lang,
       voiceId,
       rate: options.rate,
+    }).then(async (response) => {
+      // Pre-decode WAV into AudioBuffer while previous chunk is still speaking for gapless handoff.
+      const decodedBuffer = this.customPlayerFactory
+        ? undefined
+        : await this.audioPool.tryPreDecode(response.audioBase64);
+      return { response, decodedBuffer };
     });
-    reqPromise.catch(() => {
+
+    preparedPromise.catch(() => {
       this.prefetchCache.delete(key);
     });
-    this.prefetchCache.set(key, reqPromise);
+    this.prefetchCache.set(key, preparedPromise);
   }
 
   public async speak(text: string, options: EngineOptions): Promise<void> {
@@ -246,25 +297,39 @@ export class PiperNeuralEngine implements TTSEngineInterface {
 
     options.onProgress?.('Preparando voz neuronal...');
 
-    let responsePromise = this.prefetchCache.get(cacheKey);
-    if (responsePromise) {
+    let preparedPromise = this.prefetchCache.get(cacheKey);
+    if (preparedPromise) {
       this.prefetchCache.delete(cacheKey);
     } else {
-      responsePromise = this.transport({
+      // Start synthesis synchronously before first await so chunk 0 always leads lookahead prefetches.
+      preparedPromise = this.transport({
         text: trimmed,
         lang: options.lang,
         voiceId,
         rate: options.rate,
-      });
+      }).then((response) => ({ response }));
     }
 
-    const response = await responsePromise;
+    const prepared = await preparedPromise;
 
     if (options.signal?.aborted) {
       throw new TTSError('ABORTED', 'Neural playback cancelled.');
     }
 
-    const player = this.createPlayer(response.audioBase64, options.rate, options.signal);
+    const player = this.customPlayerFactory
+      ? this.customPlayerFactory(
+          prepared.response.audioBase64,
+          options.rate,
+          options.signal,
+          prepared.decodedBuffer
+        )
+      : this.audioPool.createPlayer(
+          prepared.response.audioBase64,
+          options.rate,
+          options.signal,
+          prepared.decodedBuffer
+        );
+
     this.activePlayer = player;
     options.onPlaying?.();
     try {
@@ -296,5 +361,6 @@ export class PiperNeuralEngine implements TTSEngineInterface {
 
   public dispose(): void {
     this.stop();
+    this.audioPool.dispose();
   }
 }

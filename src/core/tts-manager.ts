@@ -106,6 +106,22 @@ export class TTSManager {
       ...this.state,
       items: [...this.state.items, ...appended],
     });
+
+    // Immediately pre-synthesize newly streamed sentences that fall within the lookahead window.
+    if (
+      this.engine.prefetch &&
+      (this.state.status === 'playing' || this.state.status === 'loading')
+    ) {
+      for (const item of appended) {
+        if (item.index > this.state.currentIndex && item.index <= this.state.currentIndex + 2) {
+          this.engine.prefetch(item.text, {
+            lang: item.lang,
+            voiceId: this.activeVoiceId,
+            rate: this.state.rate,
+          });
+        }
+      }
+    }
   }
 
   public pause(): void {
@@ -260,18 +276,9 @@ export class TTSManager {
     const controller = new AbortController();
     this.activeController = controller;
 
-    // Pre-synthesize the upcoming sentence while current sentence is preparing/playing
-    const upcoming = this.state.items[index + 1];
-    if (upcoming && this.engine.prefetch) {
-      this.engine.prefetch(upcoming.text, {
-        lang: upcoming.lang,
-        voiceId: this.activeVoiceId,
-        rate: this.state.rate,
-      });
-    }
-
     try {
-      await this.engine.speak(item.text, {
+      // Launch current segment FIRST so it enters the synthesis queue ahead of lookahead prefetches.
+      const speakPromise = this.engine.speak(item.text, {
         lang: item.lang,
         voiceId: this.activeVoiceId,
         rate: this.state.rate,
@@ -303,6 +310,22 @@ export class TTSManager {
           });
         },
       });
+
+      // Pipeline lookahead: pre-synthesize the next 2 chunks behind the active chunk for gapless streaming.
+      if (this.engine.prefetch) {
+        for (let offset = 1; offset <= 2; offset += 1) {
+          const upcoming = this.state.items[index + offset];
+          if (upcoming) {
+            this.engine.prefetch(upcoming.text, {
+              lang: upcoming.lang,
+              voiceId: this.activeVoiceId,
+              rate: this.state.rate,
+            });
+          }
+        }
+      }
+
+      await speakPromise;
 
       if (
         token !== this.playbackToken ||

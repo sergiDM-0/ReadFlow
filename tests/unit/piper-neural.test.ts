@@ -151,9 +151,10 @@ describe('PiperNeuralEngine', () => {
       close: closeCtx,
     };
 
+    const audioCtxCtor = vi.fn(() => fakeCtx);
     Object.defineProperty(window, 'AudioContext', {
       configurable: true,
-      value: vi.fn(() => fakeCtx),
+      value: audioCtxCtor,
     });
 
     const transport = vi.fn().mockResolvedValue({
@@ -166,6 +167,11 @@ describe('PiperNeuralEngine', () => {
     await new Promise((r) => setTimeout(r, 10));
     expect(startNode).toHaveBeenCalledOnce();
 
+    // Prefetch while AudioContext is active pre-decodes WAV for gapless handoff
+    engine.prefetch('Siguiente frase', { lang: 'es', rate: 1 });
+    await new Promise((r) => setTimeout(r, 10));
+    expect(fakeCtx.decodeAudioData).toHaveBeenCalledTimes(2);
+
     engine.pause();
     expect(suspendCtx).toHaveBeenCalledOnce();
 
@@ -177,7 +183,16 @@ describe('PiperNeuralEngine', () => {
 
     hooks.onEnded?.();
     await expect(p).resolves.toBeUndefined();
-    expect(closeCtx).toHaveBeenCalledOnce();
+    // Persistent AudioContext stays open between segments (no close/reopen gap!)
+    expect(closeCtx).not.toHaveBeenCalled();
+
+    // Second segment reuses the same AudioContext and uses pre-decoded buffer without re-decoding
+    const pPrefetched = engine.speak('Siguiente frase', { lang: 'es', rate: 1 });
+    await new Promise((r) => setTimeout(r, 10));
+    expect(audioCtxCtor).toHaveBeenCalledTimes(1);
+    expect(fakeCtx.decodeAudioData).toHaveBeenCalledTimes(2);
+    hooks.onEnded?.();
+    await expect(pPrefetched).resolves.toBeUndefined();
 
     // Stop mid-playback cancels cleanly with ABORTED
     const p2 = engine.speak('Segunda prueba', { lang: 'es', rate: 1 });
@@ -191,9 +206,14 @@ describe('PiperNeuralEngine', () => {
       code: 'SYNTHESIS_FAILED',
     });
 
+    // Dispose closes the persistent AudioContext cleanly
+    engine.dispose();
+    expect(closeCtx).toHaveBeenCalledOnce();
+
     // Missing AudioContext surfaces ENGINE_UNAVAILABLE
     Object.defineProperty(window, 'AudioContext', { configurable: true, value: undefined });
-    await expect(engine.speak('Sin audio', { lang: 'es', rate: 1 })).rejects.toMatchObject({
+    const engineNoAudio = new PiperNeuralEngine(transport);
+    await expect(engineNoAudio.speak('Sin audio', { lang: 'es', rate: 1 })).rejects.toMatchObject({
       code: 'ENGINE_UNAVAILABLE',
     });
   });
