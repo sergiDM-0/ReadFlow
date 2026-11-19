@@ -77,10 +77,32 @@ describe('SelectionHandler', () => {
     const payload = onSelect.mock.calls[0]?.[0];
     expect(payload.text).toBe('Selected text for speech synthesis.');
     expect(payload.position.left).toBeGreaterThanOrEqual(8);
+    expect(handler.getCurrentSelectedText()).toBe('Selected text for speech synthesis.');
 
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
     expect(onClear).toHaveBeenCalledTimes(1);
 
+    // Shift+keyup re-triggers selection and outside mousedown clears it
+    document.dispatchEvent(
+      new KeyboardEvent('keyup', { key: 'Shift', shiftKey: true, bubbles: true })
+    );
+    expect(onSelect).toHaveBeenCalledTimes(2);
+
+    document.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+    expect(onClear).toHaveBeenCalledTimes(2);
+
+    // Collapsed selection yields empty text and clears active trigger on mouseup
+    vi.spyOn(window, 'getSelection').mockReturnValue({
+      isCollapsed: true,
+      rangeCount: 0,
+      toString: () => '',
+      getRangeAt: () => range,
+    } as unknown as Selection);
+    expect(handler.getCurrentSelectedText()).toBe('');
+    document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+
+    // Re-attaching while already attached is idempotent
+    handler.attach();
     handler.detach();
   });
 

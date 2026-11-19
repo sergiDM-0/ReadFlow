@@ -12,82 +12,87 @@
       <span class="badge">100% Local</span>
     </header>
 
-    <section class="card" aria-label="Estado general">
-      <div class="row">
-        <label for="toggle-enabled">Extensión activa</label>
-        <input id="toggle-enabled" type="checkbox" />
-      </div>
-      <div class="row">
-        <label for="toggle-domain-block">
-          Desactivar en <strong id="current-domain">...</strong>
-        </label>
-        <input id="toggle-domain-block" type="checkbox" />
-      </div>
-      <div class="row">
-        <label for="toggle-omit-code">Omitir bloques de código</label>
-        <input id="toggle-omit-code" type="checkbox" />
-      </div>
-      <div class="row">
-        <label for="toggle-gemini-autoread">Auto-lectura en Gemini</label>
-        <input id="toggle-gemini-autoread" type="checkbox" />
-      </div>
-    </section>
+    <main>
+      <section class="card" aria-label="Estado general">
+        <div class="row">
+          <label for="toggle-enabled">Extensión activa</label>
+          <input id="toggle-enabled" type="checkbox" />
+        </div>
+        <div class="row">
+          <label for="toggle-domain-block">
+            Desactivar en <strong id="current-domain">...</strong>
+          </label>
+          <input id="toggle-domain-block" type="checkbox" />
+        </div>
+        <div class="row">
+          <label for="toggle-omit-code">Omitir bloques de código</label>
+          <input id="toggle-omit-code" type="checkbox" />
+        </div>
+        <div class="row">
+          <label for="toggle-gemini-autoread">Auto-lectura en Gemini</label>
+          <input id="toggle-gemini-autoread" type="checkbox" />
+        </div>
+      </section>
 
-    <section class="card" aria-label="Voz y velocidad">
-      <div class="field">
-        <label for="select-rate">Velocidad por defecto</label>
-        <select id="select-rate">
-          <option value="0.75">0.75x</option>
-          <option value="1">1x</option>
-          <option value="1.25">1.25x</option>
-          <option value="1.5">1.5x</option>
-          <option value="2">2x</option>
-        </select>
-      </div>
-      <div class="field">
-        <label for="select-voice-es">Voz preferida (Español)</label>
-        <select id="select-voice-es"></select>
-      </div>
-      <div class="field">
-        <label for="select-voice-en">Voz preferida (Inglés)</label>
-        <select id="select-voice-en"></select>
-      </div>
-    </section>
+      <section class="card" aria-label="Voz y velocidad">
+        <div class="field">
+          <label for="select-rate">Velocidad por defecto</label>
+          <select id="select-rate">
+            <option value="0.75">0.75x</option>
+            <option value="1">1x</option>
+            <option value="1.25">1.25x</option>
+            <option value="1.5">1.5x</option>
+            <option value="2">2x</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="select-voice-es">Voz preferida (Español)</label>
+          <select id="select-voice-es"></select>
+        </div>
+        <div class="field">
+          <label for="select-voice-en">Voz preferida (Inglés)</label>
+          <select id="select-voice-en"></select>
+        </div>
+      </section>
 
-    <section class="card" aria-label="Motor de voz avanzado">
-      <div class="field">
-        <label for="select-engine">Motor de síntesis</label>
-        <select id="select-engine">
-          <option value="web-speech">Web Speech API (Nativo)</option>
-          <option value="local-http">Endpoint HTTP Local (Piper / Kokoro)</option>
-        </select>
-      </div>
-      <div class="field">
-        <label for="select-local-protocol">Protocolo local</label>
-        <select id="select-local-protocol">
-          <option value="piper">Piper HTTP</option>
-          <option value="kokoro-openai">Kokoro (OpenAI-compatible)</option>
-        </select>
-      </div>
-      <div class="field">
-        <label for="input-local-endpoint">Endpoint local (solo localhost)</label>
-        <input
-          id="input-local-endpoint"
-          type="url"
-          placeholder="http://127.0.0.1:5000/tts"
-          autocomplete="off"
-        />
-        <button id="btn-save-endpoint" class="primary" type="button">Guardar endpoint</button>
-        <div id="endpoint-feedback" class="feedback" role="status" aria-live="polite"></div>
-      </div>
-    </section>
+      <section class="card" aria-label="Motor de voz avanzado">
+        <div class="field">
+          <label for="select-engine">Motor de síntesis</label>
+          <select id="select-engine">
+            <option value="piper-neural">Voz Neuronal Local (Piper — Suave)</option>
+            <option value="web-speech">Web Speech API (Sistema operativo)</option>
+            <option value="local-http">Endpoint HTTP Local (Piper / Kokoro)</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="select-local-protocol">Protocolo local</label>
+          <select id="select-local-protocol">
+            <option value="piper">Piper HTTP</option>
+            <option value="kokoro-openai">Kokoro (OpenAI-compatible)</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="input-local-endpoint">Endpoint local (solo localhost)</label>
+          <input
+            id="input-local-endpoint"
+            type="url"
+            placeholder="http://127.0.0.1:5000/tts"
+            aria-describedby="endpoint-feedback"
+            autocomplete="off"
+          />
+          <button id="btn-save-endpoint" class="primary" type="button">Guardar endpoint</button>
+          <div id="endpoint-feedback" class="feedback" role="status" aria-live="polite"></div>
+        </div>
+      </section>
 
-    <section class="card" aria-label="Dominios bloqueados">
-      <strong>Lista negra de sitios</strong>
-      <ul id="blocked-domains-list" class="blocked-list"></ul>
-    </section>
+      <section class="card" aria-label="Dominios bloqueados">
+        <h2 class="section-title">Lista negra de sitios</h2>
+        <div id="blocklist-status" class="sr-only" role="status" aria-live="polite"></div>
+        <ul id="blocked-domains-list" class="blocked-list"></ul>
+      </section>
 
-    <p class="shortcut-hint">Atajo de teclado: <strong>Alt + S</strong> (leer selección / detener)</p>
+      <p class="shortcut-hint">Atajo de teclado: <strong>Alt + S</strong> (leer selección / detener)</p>
+    </main>
 
     <script type="module" src="./popup.ts"></script>
   </body>

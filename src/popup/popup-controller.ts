@@ -1,5 +1,6 @@
 import { assertLocalhostEndpoint } from '../core/engines/local-url';
 import { getPrimaryLang } from '../core/language-detector';
+import { PIPER_NEURAL_VOICES } from '../core/neural/piper-voices';
 import { isHostBlocked, toggleDomainInList } from '../shared/storage';
 import type {
   EngineId,
@@ -19,6 +20,7 @@ export interface InitPopupOptions {
   readonly storage: PopupStorageApi;
   readonly getActiveTabHost: () => Promise<string>;
   readonly getAvailableVoices: () => Promise<readonly VoiceInfo[]>;
+  readonly requestOriginPermission?: (originPattern: string) => Promise<boolean>;
 }
 
 function renderVoiceSelect(
@@ -49,7 +51,7 @@ function renderVoiceSelect(
 function renderBlockedDomains(
   listEl: HTMLElement | null,
   domains: readonly string[],
-  onRemove: (domain: string) => void
+  onRemove: (domain: string, index: number) => void
 ): void {
   if (!listEl) return;
   listEl.textContent = '';
@@ -62,7 +64,7 @@ function renderBlockedDomains(
     return;
   }
 
-  for (const domain of domains) {
+  domains.forEach((domain, index) => {
     const li = document.createElement('li');
     const span = document.createElement('span');
     span.textContent = domain;
@@ -72,15 +74,15 @@ function renderBlockedDomains(
     btn.className = 'remove-domain-btn';
     btn.setAttribute('aria-label', `Desbloquear ${domain}`);
     btn.textContent = '×';
-    btn.addEventListener('click', () => onRemove(domain));
+    btn.addEventListener('click', () => onRemove(domain, index));
 
     li.append(span, btn);
     listEl.appendChild(li);
-  }
+  });
 }
 
 export async function initPopup(options: InitPopupOptions): Promise<void> {
-  const { root, storage, getActiveTabHost, getAvailableVoices } = options;
+  const { root, storage, getActiveTabHost, getAvailableVoices, requestOriginPermission } = options;
   let settings = await storage.getSettings();
   const activeHost = await getActiveTabHost();
   const voices = await getAvailableVoices();
@@ -98,7 +100,49 @@ export async function initPopup(options: InitPopupOptions): Promise<void> {
   const selectProtocol = root.querySelector('#select-local-protocol') as HTMLSelectElement | null;
   const saveEndpointBtn = root.querySelector('#btn-save-endpoint') as HTMLButtonElement | null;
   const endpointFeedback = root.querySelector('#endpoint-feedback') as HTMLElement | null;
+  const blocklistStatus = root.querySelector('#blocklist-status') as HTMLElement | null;
   const blockedList = root.querySelector('#blocked-domains-list') as HTMLElement | null;
+
+  const persistPatch = (patch: Partial<ExtensionSettings>, onDone?: () => void) => {
+    void storage
+      .updateSettings(patch)
+      .then((next) => {
+        settings = next;
+        onDone?.();
+      })
+      .catch(() => {
+        if (endpointFeedback) {
+          endpointFeedback.setAttribute('data-state', 'error');
+          endpointFeedback.textContent = 'No se pudo guardar la configuración.';
+        }
+      });
+  };
+
+  const handleRemoveDomain = (domain: string, removedIndex: number) => {
+    void storage
+      .getSettings()
+      .then((latest) =>
+        storage.updateSettings({
+          blockedDomains: toggleDomainInList(latest.blockedDomains, domain),
+        })
+      )
+      .then((next) => {
+        settings = next;
+        syncDom();
+        if (blocklistStatus) {
+          blocklistStatus.textContent = `${domain} desbloqueado.`;
+        }
+        const remainingBtns =
+          blockedList?.querySelectorAll<HTMLButtonElement>('.remove-domain-btn');
+        if (remainingBtns && remainingBtns.length > 0) {
+          const targetIdx = Math.min(removedIndex, remainingBtns.length - 1);
+          remainingBtns[targetIdx]?.focus();
+        } else {
+          toggleDomainBlock?.focus();
+        }
+      })
+      .catch(() => undefined);
+  };
 
   const syncDom = () => {
     if (toggleEnabled) toggleEnabled.checked = settings.enabled;
@@ -107,7 +151,9 @@ export async function initPopup(options: InitPopupOptions): Promise<void> {
     }
     if (toggleDomainBlock) {
       toggleDomainBlock.disabled = !activeHost;
-      toggleDomainBlock.checked = activeHost ? isHostBlocked(activeHost, settings.blockedDomains) : false;
+      toggleDomainBlock.checked = activeHost
+        ? isHostBlocked(activeHost, settings.blockedDomains)
+        : false;
     }
     if (selectRate) selectRate.value = String(settings.defaultRate);
     if (selectEngine) selectEngine.value = settings.engine;
@@ -116,103 +162,99 @@ export async function initPopup(options: InitPopupOptions): Promise<void> {
     if (inputEndpoint) inputEndpoint.value = settings.localHttp.endpointUrl;
     if (selectProtocol) selectProtocol.value = settings.localHttp.protocol;
 
-    renderVoiceSelect(selectVoiceEs, voices, 'es', settings.voicePreferences.es);
-    renderVoiceSelect(selectVoiceEn, voices, 'en', settings.voicePreferences.en);
-    renderBlockedDomains(blockedList, settings.blockedDomains, (domain) => {
-      void storage
-        .updateSettings({ blockedDomains: toggleDomainInList(settings.blockedDomains, domain) })
-        .then((next) => {
-          settings = next;
-          syncDom();
-        });
-    });
+    const activeVoices = settings.engine === 'piper-neural' ? PIPER_NEURAL_VOICES : voices;
+    renderVoiceSelect(selectVoiceEs, activeVoices, 'es', settings.voicePreferences.es);
+    renderVoiceSelect(selectVoiceEn, activeVoices, 'en', settings.voicePreferences.en);
+    renderBlockedDomains(blockedList, settings.blockedDomains, handleRemoveDomain);
   };
 
   syncDom();
 
   toggleEnabled?.addEventListener('change', () => {
-    void storage.updateSettings({ enabled: toggleEnabled.checked }).then((next) => {
-      settings = next;
-    });
+    persistPatch({ enabled: toggleEnabled.checked });
   });
 
   toggleDomainBlock?.addEventListener('change', () => {
     if (!activeHost) return;
-    const nextDomains = toggleDomainInList(settings.blockedDomains, activeHost);
-    void storage.updateSettings({ blockedDomains: nextDomains }).then((next) => {
-      settings = next;
-      syncDom();
-    });
+    void storage
+      .getSettings()
+      .then((latest) =>
+        storage.updateSettings({
+          blockedDomains: toggleDomainInList(latest.blockedDomains, activeHost),
+        })
+      )
+      .then((next) => {
+        settings = next;
+        syncDom();
+      })
+      .catch(() => undefined);
   });
 
   selectRate?.addEventListener('change', () => {
-    const rate = Number(selectRate.value) as PlaybackRate;
-    void storage.updateSettings({ defaultRate: rate }).then((next) => {
-      settings = next;
-    });
+    persistPatch({ defaultRate: Number(selectRate.value) as PlaybackRate });
   });
 
   selectEngine?.addEventListener('change', () => {
-    const engine = selectEngine.value as EngineId;
-    void storage.updateSettings({ engine }).then((next) => {
-      settings = next;
-    });
+    persistPatch({ engine: selectEngine.value as EngineId }, () => syncDom());
   });
 
   selectVoiceEs?.addEventListener('change', () => {
-    void storage
-      .updateSettings({
-        voicePreferences: { ...settings.voicePreferences, es: selectVoiceEs.value },
-      })
-      .then((next) => {
-        settings = next;
-      });
+    persistPatch({ voicePreferences: { es: selectVoiceEs.value } });
   });
 
   selectVoiceEn?.addEventListener('change', () => {
-    void storage
-      .updateSettings({
-        voicePreferences: { ...settings.voicePreferences, en: selectVoiceEn.value },
-      })
-      .then((next) => {
-        settings = next;
-      });
+    persistPatch({ voicePreferences: { en: selectVoiceEn.value } });
   });
 
   toggleGemini?.addEventListener('change', () => {
-    void storage.updateSettings({ geminiAutoRead: toggleGemini.checked }).then((next) => {
-      settings = next;
-    });
+    persistPatch({ geminiAutoRead: toggleGemini.checked });
   });
 
   toggleOmitCode?.addEventListener('change', () => {
-    void storage.updateSettings({ omitCodeBlocks: toggleOmitCode.checked }).then((next) => {
-      settings = next;
-    });
+    persistPatch({ omitCodeBlocks: toggleOmitCode.checked });
   });
 
   saveEndpointBtn?.addEventListener('click', () => {
     if (!inputEndpoint || !endpointFeedback) return;
+    let validUrl: URL;
     try {
-      const validUrl = assertLocalhostEndpoint(inputEndpoint.value);
-      const protocol = (selectProtocol?.value as LocalHttpProtocol) || 'piper';
-      void storage
-        .updateSettings({
+      validUrl = assertLocalhostEndpoint(inputEndpoint.value);
+    } catch {
+      inputEndpoint.setAttribute('aria-invalid', 'true');
+      endpointFeedback.setAttribute('data-state', 'error');
+      endpointFeedback.textContent =
+        'URL inválida: solo se permiten direcciones HTTP locales (localhost, 127.0.0.1 o [::1]).';
+      return;
+    }
+
+    inputEndpoint.removeAttribute('aria-invalid');
+    const protocol = (selectProtocol?.value as LocalHttpProtocol) || 'piper';
+    const originPattern = `${validUrl.protocol}//${validUrl.hostname}/*`;
+
+    void (async () => {
+      try {
+        if (requestOriginPermission) {
+          const granted = await requestOriginPermission(originPattern);
+          if (!granted) {
+            endpointFeedback.setAttribute('data-state', 'error');
+            endpointFeedback.textContent = 'Permiso de host local denegado por el navegador.';
+            return;
+          }
+        }
+        const next = await storage.updateSettings({
           localHttp: {
             ...settings.localHttp,
             endpointUrl: validUrl.toString(),
             protocol,
           },
-        })
-        .then((next) => {
-          settings = next;
-          endpointFeedback.setAttribute('data-state', 'ok');
-          endpointFeedback.textContent = 'Endpoint local guardado.';
         });
-    } catch (err) {
-      endpointFeedback.setAttribute('data-state', 'error');
-      endpointFeedback.textContent =
-        err instanceof Error ? err.message : 'Solo se permiten URLs locales (localhost / 127.0.0.1).';
-    }
+        settings = next;
+        endpointFeedback.setAttribute('data-state', 'ok');
+        endpointFeedback.textContent = 'Endpoint local guardado.';
+      } catch {
+        endpointFeedback.setAttribute('data-state', 'error');
+        endpointFeedback.textContent = 'Error al guardar el endpoint local.';
+      }
+    })();
   });
 }

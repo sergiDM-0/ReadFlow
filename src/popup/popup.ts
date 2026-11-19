@@ -17,14 +17,30 @@ async function getActiveTabHost(): Promise<string> {
   }
 }
 
+async function requestOriginPermission(originPattern: string): Promise<boolean> {
+  if (!browser.permissions?.request) {
+    return true;
+  }
+  try {
+    return await browser.permissions.request({ origins: [originPattern] });
+  } catch {
+    return false;
+  }
+}
+
 async function bootstrap(): Promise<void> {
-  const engine = new WebSpeechEngine();
-  await initPopup({
-    root: document,
-    storage: getExtensionStorage(),
-    getActiveTabHost,
-    getAvailableVoices: () => engine.getVoices(),
-  });
+  try {
+    const engine = new WebSpeechEngine();
+    await initPopup({
+      root: document,
+      storage: getExtensionStorage(),
+      getActiveTabHost,
+      getAvailableVoices: () => engine.getVoices(),
+      requestOriginPermission,
+    });
+  } catch {
+    // Prevent unhandled promise rejection if popup closes mid-bootstrap.
+  }
 }
 
 void bootstrap();

@@ -146,9 +146,11 @@ export class GeminiAdapter {
     const root = this.getTargetRoot();
     if (!root) return;
 
-    const turns = queryAllCombined(root, this.selectors.modelTurn).filter(
-      (turn) => !this.seenHistoryTurns.has(turn)
+    const allTurns = queryAllCombined(root, this.selectors.modelTurn);
+    const topLevelTurns = allTurns.filter(
+      (turn) => !allTurns.some((other) => other !== turn && other.contains(turn))
     );
+    const turns = topLevelTurns.filter((turn) => !this.seenHistoryTurns.has(turn));
 
     const newlyCompleted: string[] = [];
 

@@ -1,14 +1,11 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { GeminiAdapter } from '../../src/content/adapters/gemini-adapter';
+
+const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 describe('GeminiAdapter streaming auto-read', () => {
   beforeEach(() => {
-    vi.useFakeTimers();
     document.body.textContent = '';
-  });
-
-  afterEach(() => {
-    vi.useRealTimers();
   });
 
   it('ignores pre-existing history and reads streamed paragraphs once while skipping code blocks', async () => {
@@ -24,42 +21,36 @@ describe('GeminiAdapter streaming auto-read', () => {
     const adapter = new GeminiAdapter({
       root: main,
       omitCodeBlocks: true,
+      settleMs: 25,
       onSentences: (sentences) => enqueued.push(...sentences),
     });
 
     adapter.setEnabled(true);
 
-    // Simulate a new streamed model turn
     const newTurn = document.createElement('model-response');
     const p1 = document.createElement('p');
     p1.textContent = 'Primera oración';
     newTurn.appendChild(p1);
     main.appendChild(newTurn);
 
-    // Stream completes first sentence and starts second
     p1.textContent = 'Primera oración completa. Segunda oración en progreso';
-    await vi.advanceTimersByTimeAsync(100);
+    await wait(10);
 
-    // Code block appears during streaming
     const pre = document.createElement('pre');
     const code = document.createElement('code');
     code.textContent = 'const hidden = true;';
     pre.appendChild(code);
     newTurn.appendChild(pre);
 
-    // Second paragraph arrives and streaming settles
     p1.textContent = 'Primera oración completa. Segunda oración terminada.';
     const p2 = document.createElement('p');
     p2.textContent = 'Tercer párrafo final.';
     newTurn.appendChild(p2);
 
-    await vi.advanceTimersByTimeAsync(600);
+    await wait(60);
 
-    // Must never speak old history
     expect(enqueued.join(' ')).not.toContain('Old history');
-    // Must not speak code content
     expect(enqueued.join(' ')).not.toContain('const hidden');
-    // Must speak each streamed sentence exactly once
     expect(enqueued.filter((s) => s.includes('Primera oración completa.'))).toHaveLength(1);
     expect(enqueued.filter((s) => s.includes('Segunda oración terminada.'))).toHaveLength(1);
     expect(enqueued.filter((s) => s.includes('Tercer párrafo final.'))).toHaveLength(1);
@@ -67,12 +58,17 @@ describe('GeminiAdapter streaming auto-read', () => {
     adapter.dispose();
   });
 
-  it('stops observing when disabled', async () => {
+  it('stops observing when disabled and defers tail while streaming indicator is active', async () => {
     const main = document.createElement('main');
     document.body.appendChild(main);
     const onSentences = vi.fn();
 
-    const adapter = new GeminiAdapter({ root: main, omitCodeBlocks: true, onSentences });
+    const adapter = new GeminiAdapter({
+      root: main,
+      omitCodeBlocks: true,
+      settleMs: 25,
+      onSentences,
+    });
     adapter.setEnabled(true);
     adapter.setEnabled(false);
 
@@ -82,9 +78,56 @@ describe('GeminiAdapter streaming auto-read', () => {
     turn.appendChild(p);
     main.appendChild(turn);
 
-    await vi.advanceTimersByTimeAsync(600);
+    await wait(50);
     expect(onSentences).not.toHaveBeenCalled();
 
+    adapter.setEnabled(false);
+    expect(adapter.isEnabled()).toBe(false);
+    adapter.setEnabled(true);
+    adapter.setEnabled(true);
+
+    const streamingTurn = document.createElement('model-response');
+    const busy = document.createElement('div');
+    busy.setAttribute('aria-busy', 'true');
+    const para = document.createElement('p');
+    para.textContent = 'Frase en curso todavía.';
+    streamingTurn.append(busy, para);
+    main.appendChild(streamingTurn);
+
+    await wait(50);
+    expect(onSentences).not.toHaveBeenCalled();
+
+    busy.remove();
+    para.textContent = 'Frase en curso todavía. Segunda frase lista.';
+    await wait(60);
+    expect(onSentences).toHaveBeenCalled();
+
     adapter.dispose();
+  });
+
+  it('deduplicates nested modelTurn selectors without repeating speech', async () => {
+    const main = document.createElement('main');
+    document.body.appendChild(main);
+
+    const nestedCalls: string[] = [];
+    const nestedAdapter = new GeminiAdapter({
+      root: main,
+      omitCodeBlocks: true,
+      settleMs: 25,
+      onSentences: (s) => nestedCalls.push(...s),
+    });
+    nestedAdapter.setEnabled(true);
+
+    const outer = document.createElement('model-response');
+    const inner = document.createElement('message-content');
+    const nestedP = document.createElement('p');
+    nestedP.textContent = 'Única lectura garantizada.';
+    inner.appendChild(nestedP);
+    outer.appendChild(inner);
+    main.appendChild(outer);
+
+    await wait(60);
+    expect(nestedCalls.filter((s) => s.includes('Única lectura garantizada.'))).toHaveLength(1);
+    nestedAdapter.dispose();
   });
 });

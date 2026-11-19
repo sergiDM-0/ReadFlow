@@ -8,6 +8,7 @@ vi.mock('webextension-polyfill', () => {
     default: {
       runtime: {
         id: 'echoselect-test-id',
+        getURL: vi.fn((path: string) => `moz-extension://echoselect-test/${path}`),
         sendMessage: vi.fn(),
         onMessage: {
           addListener: vi.fn(),

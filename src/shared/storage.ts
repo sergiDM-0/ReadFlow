@@ -72,9 +72,16 @@ export function mergeSettings(raw: unknown): ExtensionSettings {
     schemaVersion: 1,
     enabled: typeof input.enabled === 'boolean' ? input.enabled : DEFAULT_SETTINGS.enabled,
     blockedDomains: Array.isArray(input.blockedDomains)
-      ? Array.from(new Set(input.blockedDomains.map((d) => normalizeDomain(String(d))).filter(Boolean)))
+      ? Array.from(
+          new Set(input.blockedDomains.map((d) => normalizeDomain(String(d))).filter(Boolean))
+        )
       : DEFAULT_SETTINGS.blockedDomains,
-    engine: input.engine === 'local-http' ? 'local-http' : 'web-speech',
+    engine:
+      input.engine === 'local-http' ||
+      input.engine === 'web-speech' ||
+      input.engine === 'piper-neural'
+        ? input.engine
+        : DEFAULT_SETTINGS.engine,
     defaultRate: isValidRate(input.defaultRate) ? input.defaultRate : DEFAULT_SETTINGS.defaultRate,
     voicePreferences:
       input.voicePreferences && typeof input.voicePreferences === 'object'
@@ -85,8 +92,7 @@ export function mergeSettings(raw: unknown): ExtensionSettings {
       typeof input.omitCodeBlocks === 'boolean'
         ? input.omitCodeBlocks
         : DEFAULT_SETTINGS.omitCodeBlocks,
-    stripUrls:
-      typeof input.stripUrls === 'boolean' ? input.stripUrls : DEFAULT_SETTINGS.stripUrls,
+    stripUrls: typeof input.stripUrls === 'boolean' ? input.stripUrls : DEFAULT_SETTINGS.stripUrls,
     geminiAutoRead:
       typeof input.geminiAutoRead === 'boolean'
         ? input.geminiAutoRead
@@ -106,26 +112,33 @@ export function mergeSettings(raw: unknown): ExtensionSettings {
 }
 
 export function createStorageAdapter(backend: StorageBackend) {
+  let writeQueue: Promise<unknown> = Promise.resolve();
+
   return {
     async getSettings(): Promise<ExtensionSettings> {
       const record = await backend.get(SETTINGS_STORAGE_KEY);
       return mergeSettings(record[SETTINGS_STORAGE_KEY]);
     },
 
-    async updateSettings(patch: Partial<ExtensionSettings>): Promise<ExtensionSettings> {
-      const current = await this.getSettings();
-      const next = mergeSettings({
-        ...current,
-        ...patch,
-        localHttp: patch.localHttp
-          ? { ...current.localHttp, ...patch.localHttp }
-          : current.localHttp,
-        voicePreferences: patch.voicePreferences
-          ? { ...current.voicePreferences, ...patch.voicePreferences }
-          : current.voicePreferences,
+    updateSettings(patch: Partial<ExtensionSettings>): Promise<ExtensionSettings> {
+      const task = writeQueue.then(async () => {
+        const record = await backend.get(SETTINGS_STORAGE_KEY);
+        const current = mergeSettings(record[SETTINGS_STORAGE_KEY]);
+        const next = mergeSettings({
+          ...current,
+          ...patch,
+          localHttp: patch.localHttp
+            ? { ...current.localHttp, ...patch.localHttp }
+            : current.localHttp,
+          voicePreferences: patch.voicePreferences
+            ? { ...current.voicePreferences, ...patch.voicePreferences }
+            : current.voicePreferences,
+        });
+        await backend.set({ [SETTINGS_STORAGE_KEY]: next });
+        return next;
       });
-      await backend.set({ [SETTINGS_STORAGE_KEY]: next });
-      return next;
+      writeQueue = task.catch(() => undefined);
+      return task;
     },
   };
 }

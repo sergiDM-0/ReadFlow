@@ -26,10 +26,7 @@ test.describe('EchoSelect TTS Chrome Extension E2E', () => {
 
     context = await chromium.launchPersistentContext('', {
       headless: false,
-      args: [
-        `--disable-extensions-except=${EXTENSION_PATH}`,
-        `--load-extension=${EXTENSION_PATH}`,
-      ],
+      args: [`--disable-extensions-except=${EXTENSION_PATH}`, `--load-extension=${EXTENSION_PATH}`],
     });
   });
 
@@ -51,7 +48,13 @@ test.describe('EchoSelect TTS Chrome Extension E2E', () => {
           speaking: false,
           paused: false,
           getVoices: () => [
-            { voiceURI: 'mock-es', name: 'Mock ES', lang: 'es-ES', localService: true, default: true },
+            {
+              voiceURI: 'mock-es',
+              name: 'Mock ES',
+              lang: 'es-ES',
+              localService: true,
+              default: true,
+            },
           ],
           speak(u: SpeechSynthesisUtterance) {
             spoken.push(u.text);

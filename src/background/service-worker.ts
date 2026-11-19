@@ -1,7 +1,79 @@
 import browser from 'webextension-polyfill';
+import { PiperRuntime } from '../core/neural/piper-runtime';
+import { getExtensionStorage } from '../shared/storage';
+import type { ExtensionMessage, MessageResult } from '../shared/types';
 import { handleRuntimeMessage } from './message-handler';
 
 const CONTEXT_MENU_ID = 'echoselect-read-selection';
+
+interface ChromeOffscreenApi {
+  hasDocument?: () => Promise<boolean>;
+  createDocument: (params: {
+    url: string;
+    reasons: string[];
+    justification: string;
+  }) => Promise<void>;
+}
+
+let firefoxRuntime: PiperRuntime | null = null;
+let offscreenCreatePromise: Promise<void> | null = null;
+
+function getChromeOffscreen(): ChromeOffscreenApi | null {
+  const g = globalThis as unknown as { chrome?: { offscreen?: ChromeOffscreenApi } };
+  return g.chrome?.offscreen ?? null;
+}
+
+async function ensureOffscreenDocument(offscreen: ChromeOffscreenApi): Promise<void> {
+  if (offscreen.hasDocument && (await offscreen.hasDocument())) {
+    return;
+  }
+  if (!offscreenCreatePromise) {
+    offscreenCreatePromise = offscreen
+      .createDocument({
+        url: 'offscreen.html',
+        reasons: ['WORKERS'],
+        justification: 'Run 100% local Piper ONNX WebAssembly neural text-to-speech synthesis.',
+      })
+      .finally(() => {
+        offscreenCreatePromise = null;
+      });
+  }
+  await offscreenCreatePromise;
+}
+
+async function synthesizeNeuralInBackground(request: {
+  readonly text: string;
+  readonly voiceId: string;
+}): Promise<{ readonly mimeType: string; readonly audioBase64: string }> {
+  const offscreen = getChromeOffscreen();
+  if (offscreen) {
+    await ensureOffscreenDocument(offscreen);
+    const response = (await browser.runtime.sendMessage({
+      type: 'OFFSCREEN_PIPER_SYNTHESIZE',
+      payload: request,
+    } satisfies ExtensionMessage)) as MessageResult<{
+      readonly mimeType: string;
+      readonly audioBase64: string;
+    }>;
+
+    if (!response || !response.ok) {
+      throw new Error(
+        response && !response.ok ? response.message : 'Offscreen neural synthesis failed.'
+      );
+    }
+    return response.data;
+  }
+
+  // Firefox MV3 runs background scripts in an event page with full WebAssembly & Cache API support.
+  if (!firefoxRuntime) {
+    firefoxRuntime = new PiperRuntime({
+      ortWasmDir: browser.runtime.getURL('wasm/'),
+      piperWasm: browser.runtime.getURL('wasm/piper_phonemize.wasm'),
+      piperData: browser.runtime.getURL('wasm/piper_phonemize.data'),
+    });
+  }
+  return firefoxRuntime.synthesize(request.text, request.voiceId);
+}
 
 function registerContextMenu(): void {
   if (!browser.contextMenus) {
@@ -66,8 +138,15 @@ browser.commands?.onCommand.addListener((command) => {
 });
 
 browser.runtime.onMessage.addListener((message: unknown, sender: browser.Runtime.MessageSender) => {
+  const msg = message as ExtensionMessage | undefined;
+  if (msg?.type === 'OFFSCREEN_PIPER_SYNTHESIZE') {
+    return undefined;
+  }
+
   return handleRuntimeMessage(message, sender, {
     runtimeId: browser.runtime.id,
+    getSettings: () => getExtensionStorage().getSettings(),
+    synthesizeNeural: synthesizeNeuralInBackground,
     detectLanguage: browser.i18n?.detectLanguage
       ? (text) => browser.i18n.detectLanguage(text)
       : undefined,
