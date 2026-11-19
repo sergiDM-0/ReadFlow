@@ -1,0 +1,89 @@
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { ShadowHost } from '../../src/content/ui/shadow-host';
+import { FloatingButton } from '../../src/content/ui/floating-btn';
+import { MiniPlayer } from '../../src/content/ui/mini-player';
+
+describe('Shadow DOM UI lifecycle', () => {
+  afterEach(() => {
+    document.querySelectorAll('echo-select-ui').forEach((el) => el.remove());
+  });
+
+  it('mounts cleanly in ShadowRoot and leaves zero DOM nodes after destroy', () => {
+    const host = new ShadowHost('auto');
+    host.mount();
+
+    const hostEl = document.querySelector('echo-select-ui');
+    expect(hostEl).not.toBeNull();
+    expect(hostEl?.shadowRoot).not.toBeNull();
+
+    host.destroy();
+    expect(document.querySelector('echo-select-ui')).toBeNull();
+  });
+
+  it('renders FloatingButton with accessible attributes and triggers onClick', () => {
+    const host = new ShadowHost('dark');
+    host.mount();
+    const onClick = vi.fn();
+    const btn = new FloatingButton(host.container, onClick);
+
+    btn.show({ top: 120, left: 240 });
+    const buttonEl = host.shadowRoot.querySelector('button[data-es-role="floating-trigger"]') as HTMLButtonElement;
+    expect(buttonEl).not.toBeNull();
+    expect(buttonEl.getAttribute('aria-label')).toBeTruthy();
+    expect(buttonEl.hidden).toBe(false);
+
+    buttonEl.click();
+    expect(onClick).toHaveBeenCalledTimes(1);
+
+    btn.hide();
+    expect(buttonEl.hidden).toBe(true);
+    btn.destroy();
+    host.destroy();
+  });
+
+  it('renders MiniPlayer controls and invokes playback callbacks', () => {
+    const host = new ShadowHost('light');
+    host.mount();
+
+    const callbacks = {
+      onTogglePlayPause: vi.fn(),
+      onStop: vi.fn(),
+      onPrev: vi.fn(),
+      onNext: vi.fn(),
+      onRateChange: vi.fn(),
+    };
+
+    const player = new MiniPlayer(host.container, callbacks);
+    player.update({
+      status: 'playing',
+      items: [
+        { id: '1', index: 0, text: 'Hello.', lang: 'en' },
+        { id: '2', index: 1, text: 'World.', lang: 'en' },
+      ],
+      currentIndex: 0,
+      rate: 1,
+      detectedLang: 'en',
+      source: 'selection',
+      error: null,
+    });
+
+    const region = host.shadowRoot.querySelector('[role="region"]') as HTMLElement;
+    expect(region).not.toBeNull();
+    expect(region.hidden).toBe(false);
+
+    (host.shadowRoot.querySelector('[data-es-action="toggle"]') as HTMLButtonElement).click();
+    (host.shadowRoot.querySelector('[data-es-action="next"]') as HTMLButtonElement).click();
+    (host.shadowRoot.querySelector('[data-es-action="prev"]') as HTMLButtonElement).click();
+    (host.shadowRoot.querySelector('[data-es-action="rate"]') as HTMLButtonElement).click();
+    (host.shadowRoot.querySelector('[data-es-action="stop"]') as HTMLButtonElement).click();
+
+    expect(callbacks.onTogglePlayPause).toHaveBeenCalledOnce();
+    expect(callbacks.onNext).toHaveBeenCalledOnce();
+    expect(callbacks.onPrev).toHaveBeenCalledOnce();
+    expect(callbacks.onRateChange).toHaveBeenCalledWith(1.25);
+    expect(callbacks.onStop).toHaveBeenCalledOnce();
+
+    player.destroy();
+    host.destroy();
+  });
+});

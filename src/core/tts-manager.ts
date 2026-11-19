@@ -1,0 +1,281 @@
+import {
+  TTSError,
+  type PlaybackRate,
+  type QueueSource,
+  type SentenceItem,
+  type SentenceQueueState,
+} from '../shared/types';
+import type { TTSEngineInterface } from './engines/engine.interface';
+
+export interface PlayRequestOptions {
+  readonly lang: string;
+  readonly voiceId?: string;
+  readonly rate: PlaybackRate;
+  readonly source: QueueSource;
+}
+
+export type StateListener = (state: SentenceQueueState) => void;
+
+export class TTSManager {
+  private engine: TTSEngineInterface;
+  private state: SentenceQueueState;
+  private readonly listeners = new Set<StateListener>();
+  private activeController: AbortController | null = null;
+  private activeVoiceId: string | undefined;
+  private playbackToken = 0;
+  private itemSeq = 0;
+
+  public constructor(engine: TTSEngineInterface, initialRate: PlaybackRate = 1) {
+    this.engine = engine;
+    this.state = {
+      status: 'idle',
+      items: [],
+      currentIndex: -1,
+      rate: initialRate,
+      detectedLang: null,
+      source: null,
+      error: null,
+    };
+  }
+
+  public setEngine(engine: TTSEngineInterface): void {
+    this.stop();
+    this.engine = engine;
+  }
+
+  public getState(): SentenceQueueState {
+    return this.state;
+  }
+
+  public subscribe(listener: StateListener): () => void {
+    this.listeners.add(listener);
+    return () => {
+      this.listeners.delete(listener);
+    };
+  }
+
+  public async play(sentences: readonly string[], options: PlayRequestOptions): Promise<void> {
+    const cleanSentences = sentences.map((s) => s.trim()).filter(Boolean);
+    if (cleanSentences.length === 0) {
+      return;
+    }
+
+    this.cancelCurrentUtterance();
+    this.activeVoiceId = options.voiceId;
+
+    const items: SentenceItem[] = cleanSentences.map((text, index) => ({
+      id: `seg-${++this.itemSeq}`,
+      index,
+      text,
+      lang: options.lang,
+    }));
+
+    this.setState({
+      status: 'playing',
+      items,
+      currentIndex: 0,
+      rate: options.rate,
+      detectedLang: options.lang,
+      source: options.source,
+      error: null,
+    });
+
+    await this.speakAtIndex(0);
+  }
+
+  public async enqueue(sentences: readonly string[], options: PlayRequestOptions): Promise<void> {
+    const cleanSentences = sentences.map((s) => s.trim()).filter(Boolean);
+    if (cleanSentences.length === 0) {
+      return;
+    }
+
+    if (this.state.status === 'idle' || this.state.status === 'error') {
+      await this.play(cleanSentences, options);
+      return;
+    }
+
+    const baseIndex = this.state.items.length;
+    const appended: SentenceItem[] = cleanSentences.map((text, offset) => ({
+      id: `seg-${++this.itemSeq}`,
+      index: baseIndex + offset,
+      text,
+      lang: options.lang,
+    }));
+
+    this.setState({
+      ...this.state,
+      items: [...this.state.items, ...appended],
+    });
+  }
+
+  public pause(): void {
+    if (this.state.status !== 'playing') {
+      return;
+    }
+    this.engine.pause();
+    this.setState({ ...this.state, status: 'paused' });
+  }
+
+  public resume(): void {
+    if (this.state.status !== 'paused') {
+      return;
+    }
+    this.engine.resume();
+    this.setState({ ...this.state, status: 'playing' });
+  }
+
+  public togglePauseResume(): void {
+    if (this.state.status === 'playing') {
+      this.pause();
+    } else if (this.state.status === 'paused') {
+      this.resume();
+    }
+  }
+
+  public next(): void {
+    if (this.state.status !== 'playing' && this.state.status !== 'paused') {
+      return;
+    }
+    const nextIndex = this.state.currentIndex + 1;
+    if (nextIndex >= this.state.items.length) {
+      this.stop();
+      return;
+    }
+    this.jumpTo(nextIndex);
+  }
+
+  public prev(): void {
+    if (this.state.status !== 'playing' && this.state.status !== 'paused') {
+      return;
+    }
+    const prevIndex = Math.max(0, this.state.currentIndex - 1);
+    this.jumpTo(prevIndex);
+  }
+
+  public setRate(rate: PlaybackRate): void {
+    if (this.state.status === 'idle') {
+      this.setState({ ...this.state, rate });
+      return;
+    }
+    if (this.state.status === 'error') {
+      this.setState({ ...this.state, rate });
+      return;
+    }
+
+    const wasPlaying = this.state.status === 'playing';
+    const currentIndex = this.state.currentIndex;
+    this.setState({ ...this.state, rate });
+
+    if (wasPlaying) {
+      this.jumpTo(currentIndex);
+    }
+  }
+
+  public stop(): void {
+    this.cancelCurrentUtterance();
+    this.engine.stop();
+    this.setState({
+      status: 'idle',
+      items: [],
+      currentIndex: -1,
+      rate: this.state.rate,
+      detectedLang: null,
+      source: null,
+      error: null,
+    });
+  }
+
+  public dispose(): void {
+    this.stop();
+    this.engine.dispose();
+    this.listeners.clear();
+  }
+
+  private jumpTo(index: number): void {
+    if (this.state.status !== 'playing' && this.state.status !== 'paused') {
+      return;
+    }
+    this.cancelCurrentUtterance();
+    this.setState({
+      ...this.state,
+      status: 'playing',
+      currentIndex: index,
+    });
+    void this.speakAtIndex(index);
+  }
+
+  private cancelCurrentUtterance(): void {
+    this.playbackToken += 1;
+    this.activeController?.abort();
+    this.activeController = null;
+  }
+
+  private async speakAtIndex(index: number): Promise<void> {
+    if (this.state.status !== 'playing') {
+      return;
+    }
+
+    const item = this.state.items[index];
+    if (!item) {
+      this.stop();
+      return;
+    }
+
+    const token = ++this.playbackToken;
+    const controller = new AbortController();
+    this.activeController = controller;
+
+    try {
+      await this.engine.speak(item.text, {
+        lang: item.lang,
+        voiceId: this.activeVoiceId,
+        rate: this.state.rate,
+        signal: controller.signal,
+      });
+
+      if (token !== this.playbackToken || this.state.status !== 'playing') {
+        return;
+      }
+
+      const nextIndex = index + 1;
+      if (nextIndex < this.state.items.length) {
+        this.setState({
+          ...this.state,
+          currentIndex: nextIndex,
+        });
+        await this.speakAtIndex(nextIndex);
+      } else {
+        this.stop();
+      }
+    } catch (err) {
+      if (token !== this.playbackToken) {
+        return;
+      }
+      if (err instanceof TTSError && err.code === 'ABORTED') {
+        return;
+      }
+
+      const ttsError =
+        err instanceof TTSError
+          ? err
+          : new TTSError('SYNTHESIS_FAILED', err instanceof Error ? err.message : 'TTS failed');
+
+      this.setState({
+        status: 'error',
+        items: this.state.items,
+        currentIndex: index,
+        rate: this.state.rate,
+        detectedLang: this.state.detectedLang,
+        source: this.state.source,
+        error: { code: ttsError.code, message: ttsError.message },
+      });
+    }
+  }
+
+  private setState(next: SentenceQueueState): void {
+    this.state = next;
+    for (const listener of this.listeners) {
+      listener(next);
+    }
+  }
+}

@@ -1,0 +1,33 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+dist-chrome/
+dist-firefox/
+*.zip
+*.xpi
+
+# Coverage & Test reports
+coverage/
+playwright-report/
+test-results/
+
+# Local environment & caches
+.env
+.env.local
+.env.*.local
+.vite/
+*.tsbuildinfo
+
+# OS & IDE
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
+.idea/
+
+# Agent local runtime/state (keep .agents rules/skills/agents/workflows shareable)
+.agents/node_modules/
+.agents/ecc-install-state.json
+.ecc/

@@ -1,0 +1,38 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm run test:coverage
+      - run: npm run build
+      - run: npm run check:size
+      - name: Package browser zips and Mozilla AMO source archive
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          mkdir -p release-artifacts
+          (cd dist/chrome && zip -r "../../release-artifacts/echo-select-tts-chrome-${TAG}.zip" .)
+          (cd dist/firefox && zip -r "../../release-artifacts/echo-select-tts-firefox-${TAG}.zip" .)
+          git archive --format=tar.gz -o "release-artifacts/echo-select-tts-source-${TAG}.tar.gz" HEAD
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: release-artifacts/*
