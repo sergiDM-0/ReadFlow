@@ -1,4 +1,4 @@
-export type EngineId = 'web-speech' | 'local-http';
+export type EngineId = 'piper-neural' | 'web-speech' | 'local-http';
 
 export const PLAYBACK_RATES = [0.75, 1, 1.25, 1.5, 2] as const;
 export type PlaybackRate = (typeof PLAYBACK_RATES)[number];
@@ -22,6 +22,8 @@ export interface EngineOptions {
   readonly pitch?: number;
   readonly volume?: number;
   readonly signal?: AbortSignal;
+  readonly onProgress?: (message: string) => void;
+  readonly onPlaying?: () => void;
 }
 
 export type TTSErrorCode =
@@ -67,7 +69,7 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
   schemaVersion: 1,
   enabled: true,
   blockedDomains: [],
-  engine: 'web-speech',
+  engine: 'piper-neural',
   defaultRate: 1,
   voicePreferences: {},
   theme: 'auto',
@@ -112,6 +114,7 @@ export type SentenceQueueState =
       readonly rate: PlaybackRate;
       readonly detectedLang: string;
       readonly source: QueueSource;
+      readonly loadingMessage?: string;
       readonly error: null;
     }
   | {
@@ -130,6 +133,22 @@ export type MessageResult<T> =
 
 export type ExtensionMessage =
   | { readonly type: 'DETECT_LANGUAGE'; readonly payload: { readonly text: string } }
+  | {
+      readonly type: 'NEURAL_TTS_SYNTHESIZE';
+      readonly payload: {
+        readonly text: string;
+        readonly lang: string;
+        readonly voiceId?: string;
+        readonly rate: PlaybackRate;
+      };
+    }
+  | {
+      readonly type: 'OFFSCREEN_PIPER_SYNTHESIZE';
+      readonly payload: {
+        readonly text: string;
+        readonly voiceId: string;
+      };
+    }
   | {
       readonly type: 'LOCAL_TTS_SYNTHESIZE';
       readonly payload: {

@@ -24,6 +24,15 @@ await build({
   define: {
     __TARGET_BROWSER__: JSON.stringify(target),
   },
+  resolve: {
+    alias: {
+      // Ensure onnxruntime-web uses the lightweight external-WASM build instead of base64-inlining 15MB WASM into JS
+      'onnxruntime-web/wasm': path.resolve(
+        rootDir,
+        'node_modules/onnxruntime-web/dist/ort.wasm.min.mjs'
+      ),
+    },
+  },
   build: {
     outDir,
     emptyOutDir: false,
@@ -51,6 +60,15 @@ await build({
   logLevel: 'warn',
   define: {
     __TARGET_BROWSER__: JSON.stringify(target),
+  },
+  resolve: {
+    alias: {
+      // Ensure onnxruntime-web uses the lightweight external-WASM build instead of base64-inlining 15MB WASM into JS
+      'onnxruntime-web/wasm': path.resolve(
+        rootDir,
+        'node_modules/onnxruntime-web/dist/ort.wasm.min.mjs'
+      ),
+    },
   },
   build: {
     outDir,
@@ -80,6 +98,15 @@ await build({
   define: {
     __TARGET_BROWSER__: JSON.stringify(target),
   },
+  resolve: {
+    alias: {
+      // Ensure onnxruntime-web uses the lightweight external-WASM build instead of base64-inlining 15MB WASM into JS
+      'onnxruntime-web/wasm': path.resolve(
+        rootDir,
+        'node_modules/onnxruntime-web/dist/ort.wasm.min.mjs'
+      ),
+    },
+  },
   build: {
     outDir,
     emptyOutDir: false,
@@ -96,7 +123,59 @@ await build({
   },
 });
 
-// 4. Copy target manifest and icons
+// 4. Build Chrome MV3 Offscreen Document (hosts ONNX/Piper WASM safely outside Service Worker)
+if (target === 'chrome') {
+  await build({
+    configFile: false,
+    root: path.resolve(rootDir, 'src/offscreen'),
+    base: './',
+    logLevel: 'warn',
+    define: {
+      __TARGET_BROWSER__: JSON.stringify(target),
+    },
+    resolve: {
+      alias: {
+        // Ensure onnxruntime-web uses the lightweight external-WASM build instead of base64-inlining 15MB WASM into JS
+        'onnxruntime-web/wasm': path.resolve(
+          rootDir,
+          'node_modules/onnxruntime-web/dist/ort.wasm.min.mjs'
+        ),
+      },
+    },
+    build: {
+      outDir,
+      emptyOutDir: false,
+      sourcemap: false,
+      minify: 'esbuild',
+      target: 'es2022',
+      rollupOptions: {
+        input: path.resolve(rootDir, 'src/offscreen/offscreen.html'),
+        output: {
+          entryFileNames: 'offscreen.js',
+        },
+      },
+    },
+  });
+}
+
+// 5. Bundle local ONNX & Piper WASM runtime binaries (zero remote code execution in MV3)
+const wasmDst = path.join(outDir, 'wasm');
+fs.mkdirSync(wasmDst, { recursive: true });
+const wasmAssets = [
+  ['node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.mjs', 'ort-wasm-simd-threaded.mjs'],
+  ['node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.wasm', 'ort-wasm-simd-threaded.wasm'],
+  ['node_modules/@diffusionstudio/piper-wasm/build/piper_phonemize.wasm', 'piper_phonemize.wasm'],
+  ['node_modules/@diffusionstudio/piper-wasm/build/piper_phonemize.data', 'piper_phonemize.data'],
+];
+for (const [srcRel, dstName] of wasmAssets) {
+  const srcAbs = path.join(rootDir, srcRel);
+  if (!fs.existsSync(srcAbs)) {
+    throw new Error(`Missing required WASM runtime asset: ${srcRel}`);
+  }
+  fs.copyFileSync(srcAbs, path.join(wasmDst, dstName));
+}
+
+// 6. Copy target manifest and icons
 const manifestSource = path.join(rootDir, `manifest.${target}.json`);
 fs.copyFileSync(manifestSource, path.join(outDir, 'manifest.json'));
 

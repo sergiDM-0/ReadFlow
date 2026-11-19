@@ -1,4 +1,4 @@
-import type { EngineId, EngineOptions, VoiceInfo } from '../../shared/types';
+import type { EngineId, EngineOptions, PlaybackRate, VoiceInfo } from '../../shared/types';
 
 export interface TTSEngineCapabilities {
   readonly supportsPauseResume: boolean;
@@ -12,6 +12,8 @@ export interface TTSEngineInterface {
   isAvailable(): Promise<boolean>;
   getVoices(): Promise<readonly VoiceInfo[]>;
   speak(text: string, options: EngineOptions): Promise<void>;
+  setPlaybackRate?(rate: PlaybackRate): void;
+  prefetch?(text: string, options: EngineOptions): void;
   pause(): void;
   resume(): void;
   stop(): void;

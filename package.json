@@ -18,6 +18,8 @@
     "check:size": "node scripts/check-size.mjs"
   },
   "dependencies": {
+    "@diffusionstudio/piper-wasm": "^1.0.0",
+    "@mintplex-labs/piper-tts-web": "^1.0.5",
     "webextension-polyfill": "^0.12.0"
   },
   "devDependencies": {
