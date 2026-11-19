@@ -38,8 +38,7 @@ describe('GeminiAdapter streaming auto-read', () => {
 
     // Stream completes first sentence and starts second
     p1.textContent = 'Primera oración completa. Segunda oración en progreso';
-    await Promise.resolve();
-    vi.advanceTimersByTime(100);
+    await vi.advanceTimersByTimeAsync(100);
 
     // Code block appears during streaming
     const pre = document.createElement('pre');
@@ -54,8 +53,7 @@ describe('GeminiAdapter streaming auto-read', () => {
     p2.textContent = 'Tercer párrafo final.';
     newTurn.appendChild(p2);
 
-    await Promise.resolve();
-    vi.advanceTimersByTime(600);
+    await vi.advanceTimersByTimeAsync(600);
 
     // Must never speak old history
     expect(enqueued.join(' ')).not.toContain('Old history');
@@ -84,8 +82,7 @@ describe('GeminiAdapter streaming auto-read', () => {
     turn.appendChild(p);
     main.appendChild(turn);
 
-    await Promise.resolve();
-    vi.advanceTimersByTime(600);
+    await vi.advanceTimersByTimeAsync(600);
     expect(onSentences).not.toHaveBeenCalled();
 
     adapter.dispose();
