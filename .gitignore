@@ -34,5 +34,4 @@ Thumbs.db
 
 # Private / internal documentation and generated TypeDoc HTML (local only, never pushed to GitHub)
 docs-private/
-Documents/*
-!Documents/proyecto_text_to_speech.md
+Documents/
