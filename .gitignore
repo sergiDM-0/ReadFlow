@@ -31,3 +31,8 @@ Thumbs.db
 .agents/node_modules/
 .agents/ecc-install-state.json
 .ecc/
+
+# Private / internal documentation and generated TypeDoc HTML (local only, never pushed to GitHub)
+docs-private/
+Documents/*
+!Documents/proyecto_text_to_speech.md
