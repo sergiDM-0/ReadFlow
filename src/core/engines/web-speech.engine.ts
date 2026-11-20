@@ -13,6 +13,11 @@ function detectLinuxPlatform(): boolean {
   return /linux/i.test(ua) || /linux/i.test(platform);
 }
 
+/**
+ * Native `window.speechSynthesis` TTS engine adapter.
+ * Automatically disables native `pause()/resume()` on Linux (`speech-dispatcher`) so `TTSManager`
+ * falls back to deterministic sentence-level pause/resume.
+ */
 export class WebSpeechEngine implements TTSEngineInterface {
   public readonly id = 'web-speech' as const;
   public readonly capabilities: TTSEngineCapabilities;

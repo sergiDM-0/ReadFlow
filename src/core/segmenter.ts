@@ -104,6 +104,14 @@ function splitLongSentence(sentence: string, maxChars: number): string[] {
   return chunks;
 }
 
+/**
+ * Splits cleaned text into natural sentences using `Intl.Segmenter` (with regex fallback),
+ * protecting abbreviations (`Sr.`, `Dr.`, `e.g.`, semver `v1.2.3`, decimals) and sub-splitting
+ * clauses that exceed `maxChunkChars`.
+ * @param text Cleaned input text.
+ * @param lang BCP-47 language tag (default `'en'`).
+ * @param maxChunkChars Soft character ceiling per chunk.
+ */
 export function segmentSentences(
   text: string,
   lang = 'en',
@@ -176,6 +184,13 @@ function splitLeadFragment(
   return null;
 }
 
+/**
+ * Segments text with a progressive opening ramp (`48 -> 95 -> 140 -> maxChunkChars`)
+ * so neural TTS engines achieve minimal time-to-first-audio on the opening clause.
+ * @param text Cleaned input text.
+ * @param lang BCP-47 language tag.
+ * @param options Progressive chunk-size thresholds.
+ */
 export function segmentForStreaming(
   text: string,
   lang = 'en',

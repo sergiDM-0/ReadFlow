@@ -68,6 +68,13 @@ function findSafeWindowEnd(text: string, start: number, maxWindow: number): numb
   return endLimit;
 }
 
+/**
+ * Creates a lazy, on-demand procedural text stream that slices large documents into
+ * ~640-character windows at safe paragraph/sentence/word boundaries and applies
+ * `cleanText` + `segmentForStreaming` incrementally (`O(1)` startup time).
+ * @param rawText Full raw text selected or triggered by the user.
+ * @param options Language, sanitization, and chunk-size configuration.
+ */
 export function createProceduralTextStream(
   rawText: string,
   options: ProceduralStreamOptions

@@ -110,6 +110,10 @@ function createEngineForSettings(settings: ExtensionSettings): TTSEngineInterfac
   return new PiperNeuralEngine(sendNeuralSynthesize, undefined, sendNeuralCancel);
 }
 
+/**
+ * Main content-script orchestrator that coordinates `ShadowHost`, `FloatingButton`, `MiniPlayer`,
+ * `AutoReadDock`, `SelectionHandler`, `GeminiAdapter`, `TTSManager`, and `ProceduralTextStream`.
+ */
 export class EchoSelectContentApp {
   private settings: ExtensionSettings = DEFAULT_SETTINGS;
   private host: ShadowHost | null = null;

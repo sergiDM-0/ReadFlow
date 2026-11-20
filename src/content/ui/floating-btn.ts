@@ -30,6 +30,9 @@ function createSpeakerSvg(): SVGSVGElement {
   return svg;
 }
 
+/**
+ * Accessible floating speaker trigger button displayed next to user text selections.
+ */
 export class FloatingButton {
   private readonly button: HTMLButtonElement;
   private readonly onClick: () => void;

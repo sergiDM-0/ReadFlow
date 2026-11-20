@@ -2,6 +2,11 @@ import { TTSError } from '../../shared/types';
 
 const ALLOWED_LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]', '::1']);
 
+/**
+ * Validates that `rawUrl` is a strict `http://` loopback endpoint (`localhost`, `127.0.0.1`, `[::1]`)
+ * with no embedded credentials, preventing SSRF and data exfiltration.
+ * @throws {TTSError} With code `'INVALID_ENDPOINT'` if validation fails.
+ */
 export function assertLocalhostEndpoint(rawUrl: string): URL {
   const trimmed = rawUrl.trim();
   let parsed: URL;

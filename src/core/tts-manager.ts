@@ -20,6 +20,10 @@ export type StateListener = (state: SentenceQueueState) => void;
 
 const PROCEDURAL_LOW_WATER_MARK = 3;
 
+/**
+ * Manages the immutable sentence playback queue, procedural lookahead buffering,
+ * 2-chunk pre-synthesis pipelining, and pause/resume/rate state transitions.
+ */
 export class TTSManager {
   private engine: TTSEngineInterface;
   private state: SentenceQueueState;

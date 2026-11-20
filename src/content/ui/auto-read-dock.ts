@@ -56,6 +56,7 @@ function createSpeakerSvg(active: boolean): SVGSVGElement {
   return svg;
 }
 
+/** Resolves the closest viewport corner (`top-left`, `top-right`, `bottom-left`, `bottom-right`) to `(centerX, centerY)`. */
 export function resolveNearestCorner(
   centerX: number,
   centerY: number,
@@ -80,6 +81,11 @@ function rectsOverlap(
   );
 }
 
+/**
+ * Universal Auto-Read floating toggle that can be minimized into a compact 36x36 orb,
+ * dragged to magnetically snap into any of the 4 viewport corners, and automatically shifted
+ * to avoid colliding with the `MiniPlayer`.
+ */
 export class AutoReadDock {
   private readonly root: HTMLDivElement;
   private readonly toggleBtn: HTMLButtonElement;

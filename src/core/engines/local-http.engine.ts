@@ -84,6 +84,9 @@ async function defaultPlayAudio(
   });
 }
 
+/**
+ * Optional local HTTP TTS engine targeting user-hosted Piper or Kokoro servers on `localhost`.
+ */
 export class LocalHttpEngine implements TTSEngineInterface {
   public readonly id = 'local-http' as const;
   public readonly capabilities: TTSEngineCapabilities = {

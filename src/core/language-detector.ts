@@ -56,10 +56,12 @@ const PORTUGUESE_CHARS_RE = /[ãõç]/i;
 const FRENCH_CHARS_RE = /[àâçèêëîïôùûœ]/i;
 const GERMAN_CHARS_RE = /[äöüß]/i;
 
+/** Normalizes a language tag to lowercase hyphenated format (e.g. `'es_MX'` -> `'es-mx'`). */
 export function normalizeLangCode(lang: string): string {
   return lang.trim().toLowerCase().replace(/_/g, '-');
 }
 
+/** Extracts the primary ISO-639-1 subtag from a BCP-47 tag (e.g. `'es-MX'` -> `'es'`). */
 export function getPrimaryLang(lang: string): string {
   const normalized = normalizeLangCode(lang);
   return normalized.split('-')[0] || 'en';
@@ -110,10 +112,19 @@ function scoreHeuristic(
   return { lang: bestLang, bestScore, margin: bestScore - secondScore };
 }
 
+/**
+ * Fast synchronous stopword and diacritic heuristic for offline language detection.
+ * @param text Sample text to inspect.
+ * @param fallbackLang Fallback language tag when no markers match.
+ */
 export function detectLanguageHeuristic(text: string, fallbackLang = 'en'): string {
   return scoreHeuristic(text, fallbackLang).lang;
 }
 
+/**
+ * Detects the language of `text`, skipping remote IPC roundtrips when `preferFastLocal`
+ * is enabled and local heuristic confidence is high (`score >= 6` and `margin >= 4`).
+ */
 export async function detectLanguage(
   text: string,
   options: DetectLanguageOptions = {}
@@ -177,6 +188,10 @@ function scoreVoiceQuality(voice: VoiceInfo, normalizedLang: string, primaryLang
   return score;
 }
 
+/**
+ * Selects the best matching voice for `lang`, honoring explicit user preferences first
+ * and ranking neural/natural voices above robotic eSpeak/Speech-Dispatcher voices.
+ */
 export function selectPreferredVoice(
   voices: readonly VoiceInfo[],
   lang: string,

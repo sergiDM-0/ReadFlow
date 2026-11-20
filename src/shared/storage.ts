@@ -54,6 +54,11 @@ export type SettingsPatch = Partial<Omit<ExtensionSettings, 'appearance' | 'loca
   readonly localHttp?: Partial<ExtensionSettings['localHttp']>;
 };
 
+/**
+ * Normalizes a raw URL or hostname string to a lowercase domain name.
+ * @param input Raw URL or domain entered by the user.
+ * @returns Lowercase hostname or empty string when blank.
+ */
 export function normalizeDomain(input: string): string {
   const trimmed = input.trim().toLowerCase();
   if (!trimmed) {
@@ -68,6 +73,11 @@ export function normalizeDomain(input: string): string {
   }
 }
 
+/**
+ * Checks whether a hostname matches any entry (or subdomain of an entry) in the blocklist.
+ * @param hostname Current page hostname.
+ * @param blockedDomains List of blocked domains from user settings.
+ */
 export function isHostBlocked(hostname: string, blockedDomains: readonly string[]): boolean {
   const normalizedHost = normalizeDomain(hostname);
   if (!normalizedHost) {
@@ -81,6 +91,11 @@ export function isHostBlocked(hostname: string, blockedDomains: readonly string[
   });
 }
 
+/**
+ * Immutably adds or removes a domain from the blocked domains list.
+ * @param blockedDomains Existing blocked domain array.
+ * @param domain Domain to toggle.
+ */
 export function toggleDomainInList(
   blockedDomains: readonly string[],
   domain: string
@@ -101,6 +116,11 @@ function isValidRate(rate: unknown): rate is PlaybackRate {
   return typeof rate === 'number' && (PLAYBACK_RATES as readonly number[]).includes(rate);
 }
 
+/**
+ * Validates and merges untrusted storage data with `DEFAULT_SETTINGS`.
+ * Sanitizes hex color codes, enum values, and domain lists.
+ * @param raw Raw object read from `browser.storage`.
+ */
 export function mergeSettings(raw: unknown): ExtensionSettings {
   if (!raw || typeof raw !== 'object') {
     return {
@@ -168,6 +188,10 @@ export function mergeSettings(raw: unknown): ExtensionSettings {
   };
 }
 
+/**
+ * Creates a serialized read/write adapter over a `StorageBackend` to prevent race conditions.
+ * @param backend Underlying key-value storage backend (`browser.storage.sync` or memory mock).
+ */
 export function createStorageAdapter(backend: StorageBackend) {
   let writeQueue: Promise<unknown> = Promise.resolve();
 

@@ -81,6 +81,11 @@ async function fetchCachedBytes(url: string): Promise<ArrayBuffer> {
   return await response.arrayBuffer();
 }
 
+/**
+ * Local Piper VITS ONNX + Emscripten `piper_phonemize` runtime.
+ * Caches `.onnx` models in browser `Cache Storage`, reuses a single persistent phonemizer WASM instance
+ * (`noExitRuntime: true`), maintains an in-memory LRU audio cache, and supports 0 ms queue cancellation.
+ */
 export class PiperRuntime {
   private readonly wasmPaths: PiperWasmPaths;
   private loadedVoiceId: string | null = null;
@@ -100,10 +105,12 @@ export class PiperRuntime {
     this.wasmPaths = wasmPaths;
   }
 
+  /** Discards any queued synthesis tasks ahead of the next active request in 0 ms. */
   public cancelPending(): void {
     this.generation += 1;
   }
 
+  /** Pre-loads and compiles the phonemizer WASM and ONNX model for `voiceId` in parallel. */
   public warmup(voiceId: string): Promise<void> {
     if (this.loadedVoiceId === voiceId && this.session && this.modelConfig && this.phonemizer) {
       return Promise.resolve();
@@ -124,6 +131,10 @@ export class PiperRuntime {
     return this.warmupPromise;
   }
 
+  /**
+   * Synthesizes `text` into a 16-bit PCM WAV Base64 payload using `voiceId`,
+   * serving from the in-memory LRU cache when repeated.
+   */
   public synthesize(text: string, voiceId: string, _rate = 1): Promise<PiperSynthesizeResult> {
     const trimmed = text.trim();
     if (!trimmed) {

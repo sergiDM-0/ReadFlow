@@ -10,6 +10,10 @@ import {
 } from '../../shared/types';
 import { SHADOW_UI_STYLES } from './styles';
 
+/**
+ * Encapsulates EchoSelect's injected UI inside an isolated `<echo-select-ui>` Shadow DOM host,
+ * removing orphaned hosts on extension reload and applying live theme and custom color variables.
+ */
 export class ShadowHost {
   public readonly hostElement: HTMLElement;
   public readonly shadowRoot: ShadowRoot;

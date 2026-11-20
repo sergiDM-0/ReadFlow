@@ -61,6 +61,11 @@ function extractSenderHostname(sender: MessageSenderLike): string {
   }
 }
 
+/**
+ * Validates and dispatches privileged background runtime messages (`DETECT_LANGUAGE`,
+ * `NEURAL_TTS_SYNTHESIZE`, `NEURAL_TTS_WARMUP`, `NEURAL_TTS_CANCEL`, `LOCAL_TTS_SYNTHESIZE`),
+ * enforcing sender extension ID, domain blocklists, and trusted settings.
+ */
 export async function handleRuntimeMessage(
   rawMessage: unknown,
   sender: MessageSenderLike | undefined,

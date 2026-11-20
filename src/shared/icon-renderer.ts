@@ -41,6 +41,10 @@ export const ICON_COLOR_PRESETS: readonly IconColorPreset[] = [
 
 const HEX_COLOR_RE = /^#[0-9a-f]{6}$/i;
 
+/**
+ * Validates whether a string is a strict 6-digit hexadecimal CSS color (`#RRGGBB`).
+ * @param value Candidate color string.
+ */
 export function isValidHexColor(value: string): boolean {
   return HEX_COLOR_RE.test(value.trim());
 }
@@ -58,12 +62,21 @@ function toHex(r: number, g: number, b: number): string {
   return '#' + [clamp(r), clamp(g), clamp(b)].map((c) => c.toString(16).padStart(2, '0')).join('');
 }
 
+/**
+ * Darkens a `#RRGGBB` color by a relative factor (`0..1`) for hover states and gradients.
+ * @param hex Base `#RRGGBB` hex string.
+ * @param factor Darkening ratio (default `0.18`).
+ */
 export function darkenHexColor(hex: string, factor = 0.18): string {
   const [r, g, b] = parseRgb(hex);
   const scale = Math.max(0, Math.min(1, 1 - factor));
   return toHex(r * scale, g * scale, b * scale);
 }
 
+/**
+ * Computes an accessible `#ffffff` or `#0f172a` foreground color based on relative luminance.
+ * @param bgHex Background `#RRGGBB` color.
+ */
 export function getContrastingForeground(bgHex: string): '#ffffff' | '#0f172a' {
   const [r, g, b] = parseRgb(bgHex);
   // WCAG relative luminance approximation
@@ -71,6 +84,12 @@ export function getContrastingForeground(bgHex: string): '#ffffff' | '#0f172a' {
   return luminance > 0.62 ? '#0f172a' : '#ffffff';
 }
 
+/**
+ * Builds an inline `<svg>` EchoSelect brand icon using safe DOM APIs (`createElementNS`).
+ * @param appearance Custom icon and accent colors.
+ * @param size Pixel width and height of the SVG element.
+ * @param autoReadActive Whether to render the green Auto-Read status dot.
+ */
 export function createBrandIconSvg(
   appearance: AppearanceSettings,
   size = 28,
@@ -202,6 +221,13 @@ function createCanvasContext(size: number): DrawableCtx | null {
   return null;
 }
 
+/**
+ * Rasterizes the customizable EchoSelect dock/toolbar icon to `ImageData` for `browser.action.setIcon`.
+ * Uses `OffscreenCanvas` in MV3 Service Workers and falls back to `<canvas>` in DOM contexts.
+ * @param appearance Custom icon and accent colors.
+ * @param size Target icon dimension in pixels (`16`, `32`, `48`).
+ * @param options Optional enabled and Auto-Read indicator flags.
+ */
 export function renderToolbarIconImageData(
   appearance: AppearanceSettings,
   size: number,

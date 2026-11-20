@@ -23,6 +23,12 @@ function getCodePlaceholder(lang?: string): string {
   return 'code block omitted.';
 }
 
+/**
+ * Sanitizes raw text or Markdown before TTS synthesis by removing fenced code blocks,
+ * raw URLs, Markdown emphasis markers, and repetitive emoji sequences.
+ * @param raw Raw text input.
+ * @param options Sanitization flags (`lang`, `omitCodeBlocks`, `stripUrls`).
+ */
 export function cleanText(raw: string, options: CleanTextOptions = {}): string {
   const { lang, omitCodeBlocks = true, stripUrls = true } = options;
   if (!raw || !raw.trim()) {
@@ -96,6 +102,10 @@ function collectElementText(
   }
 }
 
+/**
+ * Walks a DOM `Element` subtree and extracts clean, readable text while skipping
+ * `<script>`, `<style>`, `[aria-hidden="true"]`, and optionally `<pre>`/`<code-block>` nodes.
+ */
 export function extractCleanTextFromElement(
   element: Element,
   options: CleanTextOptions = {}
@@ -106,6 +116,9 @@ export function extractCleanTextFromElement(
   return cleanText(parts.join(' '), options);
 }
 
+/**
+ * Clones a DOM `Range` selection and extracts sanitized text suitable for speech synthesis.
+ */
 export function extractCleanTextFromRange(range: Range, options: CleanTextOptions = {}): string {
   const fragment = range.cloneContents();
   const wrapper = document.createElement('div');

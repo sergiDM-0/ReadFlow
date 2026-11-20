@@ -48,6 +48,10 @@ function hashSentence(text: string): string {
   return `${normalized.length}:${hash >>> 0}`;
 }
 
+/**
+ * Streaming `MutationObserver` adapter for `gemini.google.com` that extracts newly completed
+ * sentences from model response turns while deduplicating via FNV-1a fingerprints and skipping code blocks.
+ */
 export class GeminiAdapter {
   private readonly selectors: SiteSelectorConfig;
   private readonly rootOverride?: Element;

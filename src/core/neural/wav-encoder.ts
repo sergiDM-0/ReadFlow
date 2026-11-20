@@ -2,6 +2,10 @@ const SILENCE_THRESHOLD = 0.008;
 const LEAD_PAD_MS = 30;
 const TRAIL_PAD_MS = 50;
 
+/**
+ * Trims dead leading and trailing silence from raw Float32 PCM audio emitted by Piper VITS
+ * while preserving a natural 30 ms attack pad and 50 ms release pad.
+ */
 export function trimPcmSilence(samples: Float32Array, sampleRate: number): Float32Array {
   if (samples.length === 0 || sampleRate <= 0) {
     return samples;
@@ -34,6 +38,7 @@ export function trimPcmSilence(samples: Float32Array, sampleRate: number): Float
   return start === 0 && end === samples.length ? samples : samples.subarray(start, end);
 }
 
+/** Encodes mono `Float32Array` PCM samples (`-1..1`) into a 16-bit RIFF/WAVE `ArrayBuffer`. */
 export function pcmToWavBuffer(samples: Float32Array, sampleRate: number): ArrayBuffer {
   const headerLength = 44;
   const numChannels = 1;
@@ -73,6 +78,7 @@ export function pcmToWavBuffer(samples: Float32Array, sampleRate: number): Array
   return buffer;
 }
 
+/** Encodes a binary `ArrayBuffer` into a Base64 string in 32 KB chunks without stack overflow. */
 export function arrayBufferToBase64(buffer: ArrayBuffer): string {
   const bytes = new Uint8Array(buffer);
   let binary = '';

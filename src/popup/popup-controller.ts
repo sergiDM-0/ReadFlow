@@ -142,6 +142,10 @@ function renderBrandIcons(
   }
 }
 
+/**
+ * Initializes the dock popup and `options_ui` ("Administrar") configuration panel,
+ * wiring quick-read actions, 3-tab navigation, live color/icon customization, and domain blocklist management.
+ */
 export async function initPopup(options: InitPopupOptions): Promise<void> {
   const {
     root,

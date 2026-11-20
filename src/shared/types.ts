@@ -1,10 +1,13 @@
+/** Supported synthesis engine identifiers. */
 export type EngineId = 'piper-neural' | 'web-speech' | 'local-http';
 
+/** Allowed playback speed multipliers in the UI and TTS pipeline. */
 export const PLAYBACK_RATES = [0.75, 1, 1.25, 1.5, 2] as const;
 export type PlaybackRate = (typeof PLAYBACK_RATES)[number];
 
 export type ThemePreference = 'auto' | 'light' | 'dark';
 export type LocalHttpProtocol = 'piper' | 'kokoro-openai';
+/** Viewport corner anchor targets for the floating Auto-Read dock/orb. */
 export type DockCorner = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
 
 export interface VoiceInfo {
@@ -36,6 +39,9 @@ export type TTSErrorCode =
   | 'TIMEOUT'
   | 'ABORTED';
 
+/**
+ * Typed domain error thrown across TTS engines, transport adapters, and queue management.
+ */
 export class TTSError extends Error {
   public readonly code: TTSErrorCode;
 

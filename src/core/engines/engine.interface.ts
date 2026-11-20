@@ -1,5 +1,6 @@
 import type { EngineId, EngineOptions, PlaybackRate, VoiceInfo } from '../../shared/types';
 
+/** Capability descriptors advertised by a `TTSEngineInterface` implementation. */
 export interface TTSEngineCapabilities {
   readonly supportsPauseResume: boolean;
   readonly supportsLiveRateChange: boolean;
@@ -7,6 +8,7 @@ export interface TTSEngineCapabilities {
   readonly streamingFirstChunkChars?: number;
 }
 
+/** Strategy contract implemented by all pluggable TTS engines (`piper-neural`, `web-speech`, `local-http`). */
 export interface TTSEngineInterface {
   readonly id: EngineId;
   readonly capabilities: TTSEngineCapabilities;

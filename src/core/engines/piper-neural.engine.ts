@@ -395,6 +395,11 @@ class SharedWebAudioPool {
   }
 }
 
+/**
+ * Client-side neural TTS engine backed by the local Piper ONNX/WASM runtime.
+ * Plays audio via pitch-preserving `HTMLAudioElement` (`preservesPitch = true`) with automatic
+ * fallback to a persistent `AudioContext` (`SharedWebAudioPool`) on strict-CSP pages.
+ */
 export class PiperNeuralEngine implements TTSEngineInterface {
   public readonly id = 'piper-neural' as const;
   public readonly capabilities: TTSEngineCapabilities = {

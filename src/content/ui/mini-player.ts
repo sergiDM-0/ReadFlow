@@ -36,6 +36,10 @@ function createControlButton(
   return btn;
 }
 
+/**
+ * Draggable floating playback controller rendered inside the Shadow DOM with pointer capture,
+ * keyboard arrow repositioning, live speed toggle, and WCAG 2.2 AA ARIA live regions.
+ */
 export class MiniPlayer {
   private readonly root: HTMLDivElement;
   private readonly dragHandle: HTMLButtonElement;

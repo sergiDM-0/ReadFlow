@@ -121,10 +121,15 @@ export const PIPER_NEURAL_VOICES: readonly PiperVoiceSpec[] = [
   },
 ];
 
+/** Looks up a Piper neural voice specification by its unique identifier. */
 export function findPiperVoiceById(voiceId: string): PiperVoiceSpec | undefined {
   return PIPER_NEURAL_VOICES.find((v) => v.id === voiceId);
 }
 
+/**
+ * Resolves the preferred or default smooth Piper neural voice for a target language.
+ * Defaults to `es_MX-claude-high` for Spanish and `en_US-hfc_female-medium` for English.
+ */
 export function resolvePiperVoiceForLang(
   lang: string,
   voicePreferences: Readonly<Record<string, string>>
@@ -150,6 +155,7 @@ export function resolvePiperVoiceForLang(
   return langAny ?? PIPER_NEURAL_VOICES[0]!;
 }
 
+/** Returns the HuggingFace `.onnx` model and `.onnx.json` config URLs for a Piper voice. */
 export function getPiperModelUrls(voiceId: string): {
   readonly modelUrl: string;
   readonly configUrl: string;

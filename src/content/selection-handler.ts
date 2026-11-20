@@ -34,6 +34,9 @@ const VIEWPORT_PADDING = 8;
 const TRIGGER_OFFSET = 8;
 const DEFAULT_BUTTON_SIZE: SizeLike = { width: 38, height: 38 };
 
+/**
+ * Computes a viewport-clamped position for the floating trigger button near a text selection rect.
+ */
 export function clampFloatingPosition(
   rect: RectLike,
   widgetSize: SizeLike,
@@ -69,6 +72,10 @@ function getSelectionAnchorRect(range: Range): RectLike | null {
   return bounding;
 }
 
+/**
+ * Observes mouse and keyboard text selections in the host document while ignoring events
+ * originating inside EchoSelect's own Shadow DOM UI.
+ */
 export class SelectionHandler {
   private readonly options: SelectionHandlerOptions;
   private abortController: AbortController | null = null;
