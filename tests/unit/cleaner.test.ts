@@ -151,5 +151,21 @@ describe('cleaner', () => {
     const text = extractCleanTextFromElement(katex, { lang: 'es' });
     expect(text).toBe('mayor que 3 igual a algo');
     expect(text.match(/mayor que 3/g)).toHaveLength(1);
+
+    // Also deduplicates MathJax v3 (<mjx-math> + <mjx-assistive-mml>) and <annotation-xml>
+    const mjx = document.createElement('mjx-container');
+    const mjxMath = document.createElement('mjx-math');
+    mjxMath.textContent = '>3 = algo';
+    const assistive = document.createElement('mjx-assistive-mml');
+    const m2 = document.createElement('math');
+    const mrow2 = document.createElement('mrow');
+    mrow2.textContent = '>3 = algo';
+    const annXml = document.createElement('annotation-xml');
+    annXml.textContent = '>3 = algo';
+    m2.append(mrow2, annXml);
+    assistive.appendChild(m2);
+    mjx.append(mjxMath, assistive);
+
+    expect(extractCleanTextFromElement(mjx, { lang: 'es' })).toBe('mayor que 3 igual a algo');
   });
 });

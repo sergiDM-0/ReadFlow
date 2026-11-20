@@ -46,8 +46,22 @@ describe('GeminiAdapter streaming auto-read', () => {
     fileChip.textContent = 'image.3423543-4.png';
     newTurn.appendChild(fileChip);
 
+    const katex = document.createElement('span');
+    katex.className = 'katex';
+    const katexMml = document.createElement('span');
+    katexMml.className = 'katex-mathml';
+    const mrow = document.createElement('mrow');
+    mrow.textContent = '>3 = algo';
+    const ann = document.createElement('annotation');
+    ann.textContent = '>3 = algo';
+    katexMml.append(mrow, ann);
+    const katexHtml = document.createElement('span');
+    katexHtml.className = 'katex-html';
+    katexHtml.textContent = '>3 = algo';
+    katex.append(katexMml, katexHtml);
     adapter.setSanitizeOptions({ omitCodeBlocks: true, omitFileNames: true });
-    p1.textContent = 'Primera oración completa. image.3423543-4 Segunda oración terminada.';
+    p1.textContent = 'Primera oración completa. image.3423543-4 Segunda oración terminada. ';
+    p1.appendChild(katex);
     const p2 = document.createElement('p');
     p2.textContent = 'Tercer párrafo final.';
     newTurn.appendChild(p2);
@@ -57,6 +71,7 @@ describe('GeminiAdapter streaming auto-read', () => {
     expect(enqueued.join(' ')).not.toContain('Old history');
     expect(enqueued.join(' ')).not.toContain('const hidden');
     expect(enqueued.join(' ')).not.toContain('image.3423543-4');
+    expect(enqueued.join(' ').match(/mayor que 3 igual a algo/g)).toHaveLength(1);
     expect(enqueued.filter((s) => s.includes('Primera oración completa.'))).toHaveLength(1);
     expect(enqueued.filter((s) => s.includes('Segunda oración terminada.'))).toHaveLength(1);
     expect(enqueued.filter((s) => s.includes('Tercer párrafo final.'))).toHaveLength(1);

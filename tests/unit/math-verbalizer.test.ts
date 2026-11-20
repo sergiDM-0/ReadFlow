@@ -53,5 +53,31 @@ describe('verbalizeMathAndQuantities', () => {
     expect(verbalizeMathAndQuantities('Pulsa Ctrl+C para copiar.', 'es')).toBe(
       'Pulsa Ctrl+C para copiar.'
     );
+    expect(verbalizeMathAndQuantities('50% et 2 kg', 'fr')).toBe('50% et 2 kg');
+    expect(verbalizeMathAndQuantities('Hex 0x1e5 y https://example.com/1/2?x=3', 'es')).toBe(
+      'Hex 0x1e5 y https://example.com/1/2?x=3'
+    );
+    expect(verbalizeMathAndQuantities('   ', 'es')).toBe('   ');
+  });
+
+  it('handles chained comparisons, advanced math symbols, and powers/roots cleanly', () => {
+    expect(verbalizeMathAndQuantities('1<x<10 y a=b=c y (>3)', 'es')).toBe(
+      '1 menor que x menor que 10 y a igual a b igual a c y (mayor que 3)'
+    );
+    expect(verbalizeMathAndQuantities('2^4 - 1 + 1.2E+6', 'es')).toBe(
+      '2 elevado a 4 menos 1 más 1.2 por 10 elevado a más 6'
+    );
+    expect(verbalizeMathAndQuantities('x^2 + y^3 + z^(n+1)', 'es')).toBe(
+      'x al cuadrado más y al cubo más z elevado a n más 1'
+    );
+    expect(verbalizeMathAndQuantities('√(a + b) + ∛(27) + 5/7', 'es')).toBe(
+      'raíz cuadrada de a más b más raíz cúbica de 27 más 5 dividido entre 7'
+    );
+    expect(verbalizeMathAndQuantities('£20 a 68 °F o 90° ± 1 × 2 · 3', 'es')).toBe(
+      '20 libras a 68 grados Fahrenheit o 90 grados más o menos 1 por 2 por 3'
+    );
+    expect(verbalizeMathAndQuantities('∀ x ∈ ℝ, x ∉ ∅ ⇒ ∑ ∞ ∫ ≡ ⇔ ∃', 'es')).toBe(
+      'para todo x pertenece a ℝ, x no pertenece a ∅ implica sumatoria de infinito integral de idéntico a si y solo si existe'
+    );
   });
 });

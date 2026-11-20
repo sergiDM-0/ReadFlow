@@ -187,9 +187,15 @@ const EN_LEXICON: MathLocaleLexicon = {
   },
 };
 
-function getLexicon(lang?: string): MathLocaleLexicon {
+function getLexicon(lang?: string): MathLocaleLexicon | null {
   const normalized = (lang ?? 'es').trim().toLowerCase();
-  return normalized.startsWith('en') ? EN_LEXICON : ES_LEXICON;
+  if (!normalized || normalized.startsWith('es')) {
+    return ES_LEXICON;
+  }
+  if (normalized.startsWith('en')) {
+    return EN_LEXICON;
+  }
+  return null;
 }
 
 const URL_PROTECT_RE = /https?:\/\/[^\s<>()]+/gi;
@@ -216,6 +222,9 @@ export function verbalizeMathAndQuantities(input: string, lang = 'es'): string {
   }
 
   const lex = getLexicon(lang);
+  if (!lex) {
+    return input;
+  }
   const protectedUrls: string[] = [];
   let text = input.replace(URL_PROTECT_RE, (url) => {
     const idx = protectedUrls.length;
@@ -223,11 +232,14 @@ export function verbalizeMathAndQuantities(input: string, lang = 'es'): string {
     return `\uE010${idx}\uE011`;
   });
 
-  // 1. Scientific notation (e.g. 3.5e-4, 1.2E+6)
-  text = text.replace(/(\d+(?:[.,]\d+)?)[eE]([+-]?)(\d+)/g, (_m, mantissa, sign, exp) => {
-    const signWord = sign === '-' ? `${lex.minus} ` : sign === '+' ? `${lex.plus} ` : '';
-    return `${mantissa} ${lex.timesTenPower} ${signWord}${exp}`;
-  });
+  // 1. Scientific notation (e.g. 3.5e-4, 1.2E+6), excluding hex/alphanumeric tokens like 0x1e5
+  text = text.replace(
+    /(?<![a-zA-Z0-9_])(\d+(?:[.,]\d+)?)[eE]([+-]?)(\d+)\b/g,
+    (_m, mantissa, sign, exp) => {
+      const signWord = sign === '-' ? `${lex.minus} ` : sign === '+' ? `${lex.plus} ` : '';
+      return `${mantissa} ${lex.timesTenPower} ${signWord}${exp}`;
+    }
+  );
 
   // 2. Currencies ($45.50, €100, £20)
   text = text
@@ -259,7 +271,7 @@ export function verbalizeMathAndQuantities(input: string, lang = 'es'): string {
     .replace(/([a-zA-Z0-9)])\s*\^\s*2(?![0-9a-zA-Z])/g, `$1 ${lex.squared}`)
     .replace(/([a-zA-Z0-9)])\s*\^\s*3(?![0-9a-zA-Z])/g, `$1 ${lex.cubed}`)
     .replace(/([a-zA-Z0-9)])\s*\^\s*\(([^)]+)\)/g, `$1 ${lex.toPowerOf} $2`)
-    .replace(/([a-zA-Z0-9)])\s*\^\s*([a-zA-Z0-9+-]+)/g, `$1 ${lex.toPowerOf} $2`);
+    .replace(/([a-zA-Z0-9)])\s*\^\s*([+-]?[a-zA-Z0-9]+)/g, `$1 ${lex.toPowerOf} $2`);
 
   // 6. Numeric fractions & division (1/2, 3/4, 10 / 2, 100 ÷ 4) without breaking file paths
   text = text.replace(/(?<![\w/])(\d+)\s*\/\s*(\d+)(?![\w/])/g, (match, a: string, b: string) => {
@@ -289,18 +301,22 @@ export function verbalizeMathAndQuantities(input: string, lang = 'es'): string {
     .replace(/\s*(?:!==?|≠)\s*/g, ` ${lex.notEqual} `)
     .replace(/\s*≈\s*/g, ` ${lex.approxEqual} `)
     .replace(/\s*≡\s*/g, ` ${lex.identical} `)
-    .replace(/(^|[\s(a-zA-Z0-9])>\s*([a-zA-Z0-9(+-])/g, `$1 ${lex.greaterThan} $2`)
-    .replace(/(^|[\s(a-zA-Z0-9])<\s*([a-zA-Z0-9(+-])/g, `$1 ${lex.lessThan} $2`)
-    .replace(/([a-zA-Z0-9)\]])\s*=\s*([a-zA-Z0-9([-])/g, `$1 ${lex.equals} $2`);
+    .replace(/(^|[\s(\p{L}0-9])>\s*(?=[\p{L}0-9(+-])/gu, (_m, p1: string) =>
+      p1 === '(' || !p1 ? `${p1}${lex.greaterThan} ` : `${p1} ${lex.greaterThan} `
+    )
+    .replace(/(^|[\s(\p{L}0-9])<\s*(?=[\p{L}0-9(+-])/gu, (_m, p1: string) =>
+      p1 === '(' || !p1 ? `${p1}${lex.lessThan} ` : `${p1} ${lex.lessThan} `
+    )
+    .replace(/([\p{L}0-9)\]])\s*=\s*(?=[\p{L}0-9([-])/gu, `$1 ${lex.equals} `);
 
   // 9. Arithmetic operators (+, -, *, ×, ·) in explicit math contexts (never breaking hyphenated words or Ctrl+C shortcuts)
   text = text
-    .replace(/([a-zA-Z0-9)])\s+\+\s+([a-zA-Z0-9(])/g, `$1 ${lex.plus} $2`)
-    .replace(/([0-9)])\s*\+\s*([a-zA-Z0-9(])/g, `$1 ${lex.plus} $2`)
-    .replace(/([a-zA-Z0-9)])\s*\+\s*([0-9(])/g, `$1 ${lex.plus} $2`)
-    .replace(/([0-9)])\s+[-−]\s+([0-9(])/g, `$1 ${lex.minus} $2`)
-    .replace(/([a-zA-Z0-9)])\s*[×·]\s*([a-zA-Z0-9(])/g, `$1 ${lex.times} $2`)
-    .replace(/([0-9)])\s*\*\s*([0-9(])/g, `$1 ${lex.times} $2`);
+    .replace(/([\p{L}0-9)])\s+\+\s+(?=[\p{L}0-9(])/gu, `$1 ${lex.plus} `)
+    .replace(/([0-9)])\s*\+\s*(?=[\p{L}0-9(])/gu, `$1 ${lex.plus} `)
+    .replace(/([\p{L}0-9)])\s*\+\s*(?=[0-9(])/gu, `$1 ${lex.plus} `)
+    .replace(/([0-9)])(?:\s+[-−]\s+|\s*−\s*)(?=[0-9(])/g, `$1 ${lex.minus} `)
+    .replace(/([\p{L}0-9)])\s*[×·]\s*(?=[\p{L}0-9(])/gu, `$1 ${lex.times} `)
+    .replace(/([0-9)])\s*\*\s*(?=[0-9(])/g, `$1 ${lex.times} `);
 
   // Restore protected URLs and collapse whitespace
   text = text
