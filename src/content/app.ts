@@ -264,6 +264,7 @@ export class EchoSelectContentApp {
     this.selectionHandler = new SelectionHandler({
       isInsideOwnUi: (target, path) => this.host?.containsEventTarget(target, path) ?? false,
       omitCodeBlocks: () => this.settings.omitCodeBlocks,
+      omitFileNames: () => this.settings.omitFileNames,
       stripUrls: () => this.settings.stripUrls,
       onSelect: ({ text, position }) => {
         this.pendingText = text;
@@ -291,6 +292,7 @@ export class EchoSelectContentApp {
     if (GEMINI_SELECTORS.hostPattern.test(window.location.hostname)) {
       this.geminiAdapter = new GeminiAdapter({
         omitCodeBlocks: this.settings.omitCodeBlocks,
+        omitFileNames: this.settings.omitFileNames,
         onSentences: (sentences) => {
           void this.enqueueStreamingSentences(sentences);
         },
@@ -365,6 +367,10 @@ export class EchoSelectContentApp {
   private syncAutoReadUi(): void {
     const active = this.isAutoReadActive();
     if (this.geminiAdapter) {
+      this.geminiAdapter.setSanitizeOptions({
+        omitCodeBlocks: this.settings.omitCodeBlocks,
+        omitFileNames: this.settings.omitFileNames,
+      });
       this.geminiAdapter.setEnabled(
         this.settings.geminiAutoRead || this.settings.autoReadSelection
       );
@@ -445,6 +451,7 @@ export class EchoSelectContentApp {
     const raw = explicitText?.trim() || this.selectionHandler?.getCurrentSelectedText() || '';
     const cleaned = cleanText(raw, {
       omitCodeBlocks: this.settings.omitCodeBlocks,
+      omitFileNames: this.settings.omitFileNames,
       stripUrls: this.settings.stripUrls,
     });
     if (!cleaned) {
@@ -472,6 +479,7 @@ export class EchoSelectContentApp {
     const stream = createProceduralTextStream(text, {
       lang,
       omitCodeBlocks: this.settings.omitCodeBlocks,
+      omitFileNames: this.settings.omitFileNames,
       stripUrls: this.settings.stripUrls,
       maxChunkChars: this.currentEngine.capabilities.maxChunkChars,
       firstChunkMaxChars: this.currentEngine.capabilities.streamingFirstChunkChars,

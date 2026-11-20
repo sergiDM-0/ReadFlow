@@ -1,4 +1,4 @@
-import { cleanText } from '../../core/cleaner';
+import { cleanText, isAttachmentOrMediaNode } from '../../core/cleaner';
 import { segmentSentences } from '../../core/segmenter';
 import { GEMINI_SELECTORS, type SiteSelectorConfig } from './gemini-selectors';
 
@@ -6,6 +6,7 @@ export interface GeminiAdapterOptions {
   readonly root?: Element;
   readonly selectors?: SiteSelectorConfig;
   readonly omitCodeBlocks?: boolean;
+  readonly omitFileNames?: boolean;
   readonly settleMs?: number;
   readonly onSentences: (sentences: readonly string[]) => void;
 }
@@ -55,7 +56,8 @@ function hashSentence(text: string): string {
 export class GeminiAdapter {
   private readonly selectors: SiteSelectorConfig;
   private readonly rootOverride?: Element;
-  private readonly omitCodeBlocks: boolean;
+  private omitCodeBlocks: boolean;
+  private omitFileNames: boolean;
   private readonly settleMs: number;
   private readonly onSentences: (sentences: readonly string[]) => void;
 
@@ -69,12 +71,21 @@ export class GeminiAdapter {
     this.selectors = options.selectors ?? GEMINI_SELECTORS;
     this.rootOverride = options.root;
     this.omitCodeBlocks = options.omitCodeBlocks ?? true;
+    this.omitFileNames = options.omitFileNames ?? true;
     this.settleMs = options.settleMs ?? DEFAULT_SETTLE_MS;
     this.onSentences = options.onSentences;
   }
 
   public isEnabled(): boolean {
     return this.enabled;
+  }
+
+  public setSanitizeOptions(options: {
+    readonly omitCodeBlocks: boolean;
+    readonly omitFileNames: boolean;
+  }): void {
+    this.omitCodeBlocks = options.omitCodeBlocks;
+    this.omitFileNames = options.omitFileNames;
   }
 
   public setEnabled(next: boolean): void {
@@ -166,7 +177,9 @@ export class GeminiAdapter {
       }
 
       const blocks = queryAllCombined(turn, this.selectors.readableBlocks).filter(
-        (block) => !isExcludedElement(block, this.selectors.excludedSubtrees)
+        (block) =>
+          !isExcludedElement(block, this.selectors.excludedSubtrees) &&
+          !(this.omitFileNames && isAttachmentOrMediaNode(block))
       );
 
       const isStreaming = Boolean(queryFirst(turn, this.selectors.streamingIndicator));
@@ -174,7 +187,10 @@ export class GeminiAdapter {
       blocks.forEach((block, blockIdx) => {
         const isLastBlock = blockIdx === blocks.length - 1;
         const rawText = this.extractBlockText(block);
-        const cleaned = cleanText(rawText, { omitCodeBlocks: this.omitCodeBlocks });
+        const cleaned = cleanText(rawText, {
+          omitCodeBlocks: this.omitCodeBlocks,
+          omitFileNames: this.omitFileNames,
+        });
         if (!cleaned) return;
 
         const sentences = segmentSentences(cleaned);
@@ -207,7 +223,10 @@ export class GeminiAdapter {
       }
       if (node.nodeType !== Node.ELEMENT_NODE) return;
       const el = node as Element;
-      if (isExcludedElement(el, this.selectors.excludedSubtrees)) {
+      if (
+        isExcludedElement(el, this.selectors.excludedSubtrees) ||
+        (this.omitFileNames && isAttachmentOrMediaNode(el))
+      ) {
         return;
       }
       for (const child of Array.from(el.childNodes)) {

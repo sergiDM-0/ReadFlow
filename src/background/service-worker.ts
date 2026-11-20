@@ -228,6 +228,7 @@ async function speakFallbackInBackground(rawText: string): Promise<void> {
   }
   const cleaned = cleanText(rawText, {
     omitCodeBlocks: settings.omitCodeBlocks,
+    omitFileNames: settings.omitFileNames,
     stripUrls: settings.stripUrls,
   });
   if (!cleaned) {
@@ -240,6 +241,7 @@ async function speakFallbackInBackground(rawText: string): Promise<void> {
   const stream = createProceduralTextStream(cleaned, {
     lang,
     omitCodeBlocks: settings.omitCodeBlocks,
+    omitFileNames: settings.omitFileNames,
     stripUrls: settings.stripUrls,
     maxChunkChars: 175,
     firstChunkMaxChars: 48,

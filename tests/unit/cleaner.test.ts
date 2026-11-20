@@ -73,4 +73,57 @@ describe('cleaner', () => {
     el.append(script, hidden, visible);
     expect(extractCleanTextFromElement(el)).toBe('Visible text.');
   });
+
+  it('strips noisy uploaded image and document filenames (like image.3423543-4) and attachment chips by default', () => {
+    const raw =
+      'Basado en image.3423543-4 y [IMG_20261120_145504.jpg] o (reporte_final-2026.pdf), en la imagen 1 la respuesta es correcta.';
+    const cleaned = cleanText(raw);
+    expect(cleaned).not.toContain('image.3423543-4');
+    expect(cleaned).not.toContain('IMG_20261120_145504.jpg');
+    expect(cleaned).not.toContain('reporte_final-2026.pdf');
+    expect(cleaned).toContain('Basado en');
+    expect(cleaned).toContain('en la imagen 1 la respuesta es correcta.');
+
+    const kept = cleanText(raw, { omitFileNames: false });
+    expect(kept).toContain('image.3423543-4');
+    expect(kept).toContain('IMG_20261120_145504.jpg');
+
+    const dom = document.createElement('div');
+    const chip = document.createElement('user-query-file-preview');
+    chip.textContent = 'image.3423543-4.png 2.4 MB';
+    const icon = document.createElement('mat-icon');
+    icon.textContent = 'picture_as_pdf';
+    const attach = document.createElement('div');
+    attach.setAttribute('data-test-id', 'file-attachment-chip');
+    attach.textContent = 'screenshot_998877.webp';
+    const p = document.createElement('p');
+    p.textContent = 'Aquí tienes el análisis de la gráfica.';
+    dom.append(chip, icon, attach, p);
+
+    expect(extractCleanTextFromElement(dom)).toBe('Aquí tienes el análisis de la gráfica.');
+
+    // Ordinary prose with numbered references, empty code brackets and URLs is preserved
+    expect(cleanText('See Document 1 and Image 2 for details.')).toBe(
+      'See Document 1 and Image 2 for details.'
+    );
+    expect(cleanText('Revisa el archivo 2 y la foto 3.')).toBe('Revisa el archivo 2 y la foto 3.');
+    expect(cleanText('You must file 1099 forms.')).toBe('You must file 1099 forms.');
+    expect(cleanText('Call init() and pass items[] now.')).toBe(
+      'Call init() and pass items[] now.'
+    );
+    expect(cleanText('Logo: https://example.com/assets/logo.png', { stripUrls: false })).toBe(
+      'Logo: https://example.com/assets/logo.png'
+    );
+    expect(cleanText('Ver ([image.3423543-4]) ahora.')).not.toContain('image.3423543-4');
+
+    // <figure>/<figcaption> captions stay readable
+    const fig = document.createElement('figure');
+    const cap = document.createElement('figcaption');
+    cap.textContent = 'Tabla 1: resultados trimestrales.';
+    fig.appendChild(cap);
+    expect(extractCleanTextFromElement(fig)).toBe('Tabla 1: resultados trimestrales.');
+    expect(extractCleanTextFromElement(dom, { omitFileNames: false })).toContain(
+      'image.3423543-4.png'
+    );
+  });
 });

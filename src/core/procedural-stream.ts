@@ -4,6 +4,7 @@ import { segmentForStreaming, segmentSentences } from './segmenter';
 export interface ProceduralStreamOptions {
   readonly lang: string;
   readonly omitCodeBlocks: boolean;
+  readonly omitFileNames?: boolean;
   readonly stripUrls: boolean;
   readonly maxChunkChars: number;
   readonly firstChunkMaxChars?: number;
@@ -103,6 +104,7 @@ export function createProceduralTextStream(
         const cleaned = cleanText(rawSlice, {
           lang: options.lang,
           omitCodeBlocks: options.omitCodeBlocks,
+          omitFileNames: options.omitFileNames,
           stripUrls: options.stripUrls,
         });
 

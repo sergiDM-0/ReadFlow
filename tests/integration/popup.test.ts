@@ -45,6 +45,7 @@ function createPopupDom(): HTMLElement {
     ['input', { id: 'toggle-autoread-selection', type: 'checkbox' }],
     ['input', { id: 'toggle-gemini-autoread', type: 'checkbox' }],
     ['input', { id: 'toggle-omit-code', type: 'checkbox' }],
+    ['input', { id: 'toggle-omit-filenames', type: 'checkbox' }],
     ['input', { id: 'input-local-endpoint', type: 'url' }],
     ['select', { id: 'select-local-protocol' }],
     ['button', { id: 'btn-save-endpoint', type: 'button' }],
@@ -292,6 +293,11 @@ describe('popup controller', () => {
     codeCb.checked = false;
     codeCb.dispatchEvent(new Event('change'));
 
+    const fileNamesCb = document.querySelector('#toggle-omit-filenames') as HTMLInputElement;
+    expect(fileNamesCb.checked).toBe(true);
+    fileNamesCb.checked = false;
+    fileNamesCb.dispatchEvent(new Event('change'));
+
     const removeBtn = document.querySelector('.remove-domain-btn') as HTMLButtonElement;
     removeBtn?.click();
 
@@ -309,6 +315,7 @@ describe('popup controller', () => {
     expect(saved.autoReadSelection).toBe(true);
     expect(saved.geminiAutoRead).toBe(true);
     expect(saved.omitCodeBlocks).toBe(false);
+    expect(saved.omitFileNames).toBe(false);
     expect(saved.blockedDomains).not.toContain('news.example.com');
   });
 });

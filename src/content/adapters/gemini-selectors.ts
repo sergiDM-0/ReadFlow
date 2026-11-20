@@ -17,6 +17,14 @@ export const GEMINI_SELECTORS: SiteSelectorConfig = {
     '.model-response-text',
   ],
   readableBlocks: ['p', 'li', 'h1', 'h2', 'h3', 'h4', 'blockquote'],
-  excludedSubtrees: ['pre', 'code', 'code-block', 'button', '[aria-hidden="true"]'],
+  excludedSubtrees: [
+    'pre',
+    'code',
+    'code-block',
+    'button',
+    'svg',
+    'mat-icon',
+    '[aria-hidden="true"]',
+  ],
   streamingIndicator: ['[aria-busy="true"]', '.streaming', 'mat-progress-bar'],
 };

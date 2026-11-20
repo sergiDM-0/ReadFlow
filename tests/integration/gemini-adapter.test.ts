@@ -42,7 +42,12 @@ describe('GeminiAdapter streaming auto-read', () => {
     pre.appendChild(code);
     newTurn.appendChild(pre);
 
-    p1.textContent = 'Primera oración completa. Segunda oración terminada.';
+    const fileChip = document.createElement('user-query-file-preview');
+    fileChip.textContent = 'image.3423543-4.png';
+    newTurn.appendChild(fileChip);
+
+    adapter.setSanitizeOptions({ omitCodeBlocks: true, omitFileNames: true });
+    p1.textContent = 'Primera oración completa. image.3423543-4 Segunda oración terminada.';
     const p2 = document.createElement('p');
     p2.textContent = 'Tercer párrafo final.';
     newTurn.appendChild(p2);
@@ -51,6 +56,7 @@ describe('GeminiAdapter streaming auto-read', () => {
 
     expect(enqueued.join(' ')).not.toContain('Old history');
     expect(enqueued.join(' ')).not.toContain('const hidden');
+    expect(enqueued.join(' ')).not.toContain('image.3423543-4');
     expect(enqueued.filter((s) => s.includes('Primera oración completa.'))).toHaveLength(1);
     expect(enqueued.filter((s) => s.includes('Segunda oración terminada.'))).toHaveLength(1);
     expect(enqueued.filter((s) => s.includes('Tercer párrafo final.'))).toHaveLength(1);
@@ -102,6 +108,29 @@ describe('GeminiAdapter streaming auto-read', () => {
     await wait(60);
     expect(onSentences).toHaveBeenCalled();
 
+    adapter.dispose();
+  });
+
+  it('keeps attachment chips and filenames when omitFileNames is disabled', async () => {
+    const main = document.createElement('main');
+    document.body.appendChild(main);
+    const spoken: string[] = [];
+    const adapter = new GeminiAdapter({
+      root: main,
+      omitFileNames: false,
+      settleMs: 25,
+      onSentences: (s) => spoken.push(...s),
+    });
+    adapter.setEnabled(true);
+
+    const turn = document.createElement('model-response');
+    const p = document.createElement('p');
+    p.textContent = 'Analicé image.3423543-4 correctamente.';
+    turn.appendChild(p);
+    main.appendChild(turn);
+
+    await wait(60);
+    expect(spoken.join(' ')).toContain('image.3423543-4');
     adapter.dispose();
   });
 

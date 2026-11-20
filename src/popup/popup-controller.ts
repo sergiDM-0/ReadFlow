@@ -177,6 +177,9 @@ export async function initPopup(options: InitPopupOptions): Promise<void> {
   ) as HTMLInputElement | null;
   const toggleGemini = root.querySelector('#toggle-gemini-autoread') as HTMLInputElement | null;
   const toggleOmitCode = root.querySelector('#toggle-omit-code') as HTMLInputElement | null;
+  const toggleOmitFileNames = root.querySelector(
+    '#toggle-omit-filenames'
+  ) as HTMLInputElement | null;
   const inputEndpoint = root.querySelector('#input-local-endpoint') as HTMLInputElement | null;
   const selectProtocol = root.querySelector('#select-local-protocol') as HTMLSelectElement | null;
   const saveEndpointBtn = root.querySelector('#btn-save-endpoint') as HTMLButtonElement | null;
@@ -328,6 +331,7 @@ export async function initPopup(options: InitPopupOptions): Promise<void> {
     if (toggleAutoReadSelection) toggleAutoReadSelection.checked = settings.autoReadSelection;
     if (toggleGemini) toggleGemini.checked = settings.geminiAutoRead;
     if (toggleOmitCode) toggleOmitCode.checked = settings.omitCodeBlocks;
+    if (toggleOmitFileNames) toggleOmitFileNames.checked = settings.omitFileNames;
     if (inputEndpoint) inputEndpoint.value = settings.localHttp.endpointUrl;
     if (selectProtocol) selectProtocol.value = settings.localHttp.protocol;
 
@@ -454,6 +458,10 @@ export async function initPopup(options: InitPopupOptions): Promise<void> {
 
   toggleOmitCode?.addEventListener('change', () => {
     persistPatch({ omitCodeBlocks: toggleOmitCode.checked });
+  });
+
+  toggleOmitFileNames?.addEventListener('change', () => {
+    persistPatch({ omitFileNames: toggleOmitFileNames.checked });
   });
 
   const applyUnifiedPrimaryColor = (value: string) => {

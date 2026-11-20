@@ -37,6 +37,7 @@ describe('storage helpers', () => {
       engine: 'local-http',
       theme: 'dark',
       omitCodeBlocks: false,
+      omitFileNames: false,
       stripUrls: false,
       blockedDomains: ['Example.com', ''],
       localHttp: {
@@ -49,6 +50,7 @@ describe('storage helpers', () => {
     expect(merged.enabled).toBe(false);
     expect(merged.engine).toBe('local-http');
     expect(merged.theme).toBe('dark');
+    expect(merged.omitFileNames).toBe(false);
     expect(merged.localHttp.protocol).toBe('kokoro-openai');
 
     // Sanitizes invalid hex colors in appearance to safe defaults (prevents CSS injection)

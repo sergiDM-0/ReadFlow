@@ -158,6 +158,10 @@ export function mergeSettings(raw: unknown): ExtensionSettings {
       typeof input.omitCodeBlocks === 'boolean'
         ? input.omitCodeBlocks
         : DEFAULT_SETTINGS.omitCodeBlocks,
+    omitFileNames:
+      typeof input.omitFileNames === 'boolean'
+        ? input.omitFileNames
+        : DEFAULT_SETTINGS.omitFileNames,
     stripUrls: typeof input.stripUrls === 'boolean' ? input.stripUrls : DEFAULT_SETTINGS.stripUrls,
     autoReadSelection:
       typeof input.autoReadSelection === 'boolean'

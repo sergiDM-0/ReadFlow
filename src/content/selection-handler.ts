@@ -1,4 +1,4 @@
-import { cleanText, extractCleanTextFromRange, type CleanTextOptions } from '../core/cleaner';
+import { cleanText, extractCleanTextFromElement, type CleanTextOptions } from '../core/cleaner';
 
 export interface RectLike {
   readonly top: number;
@@ -27,6 +27,7 @@ export interface SelectionHandlerOptions {
   readonly onSelect: (payload: SelectionPayload) => void;
   readonly onClear: () => void;
   readonly omitCodeBlocks?: () => boolean;
+  readonly omitFileNames?: () => boolean;
   readonly stripUrls?: () => boolean;
 }
 
@@ -258,6 +259,7 @@ export class SelectionHandler {
   public getCurrentSelectedText(): string {
     const cleanOpts: CleanTextOptions = {
       omitCodeBlocks: this.options.omitCodeBlocks?.() ?? true,
+      omitFileNames: this.options.omitFileNames?.() ?? true,
       stripUrls: this.options.stripUrls?.() ?? true,
     };
 
@@ -289,6 +291,7 @@ export class SelectionHandler {
     if (!copied) return;
     const cleaned = cleanText(copied, {
       omitCodeBlocks: this.options.omitCodeBlocks?.() ?? true,
+      omitFileNames: this.options.omitFileNames?.() ?? true,
       stripUrls: this.options.stripUrls?.() ?? true,
     });
     if (cleaned) {
@@ -310,13 +313,26 @@ export class SelectionHandler {
     const selection = window.getSelection();
     if (selection && !selection.isCollapsed && selection.rangeCount > 0) {
       const range = selection.getRangeAt(0);
-      const text =
-        extractCleanTextFromRange(range, cleanOpts) || cleanText(selection.toString(), cleanOpts);
+      const text = this.extractSelectionText(range, selection.toString(), cleanOpts);
       if (text) {
         return { text, rect: getSelectionAnchorRect(range) ?? this.lastPointerRect };
       }
     }
     return null;
+  }
+
+  private extractSelectionText(
+    range: Range,
+    fallbackRaw: string,
+    cleanOpts: CleanTextOptions
+  ): string {
+    const fragment = range.cloneContents();
+    if (fragment.textContent?.trim()) {
+      const wrapper = document.createElement('div');
+      wrapper.appendChild(fragment);
+      return extractCleanTextFromElement(wrapper, cleanOpts);
+    }
+    return cleanText(fallbackRaw, cleanOpts);
   }
 
   private resolveSameOriginIframeSelection(
@@ -346,9 +362,7 @@ export class SelectionHandler {
         const iframeSel = win.getSelection?.();
         if (iframeSel && !iframeSel.isCollapsed && iframeSel.rangeCount > 0) {
           const range = iframeSel.getRangeAt(0);
-          const text =
-            extractCleanTextFromRange(range, cleanOpts) ||
-            cleanText(iframeSel.toString(), cleanOpts);
+          const text = this.extractSelectionText(range, iframeSel.toString(), cleanOpts);
           if (text) {
             const localRect = getSelectionAnchorRect(range);
             const frameBox = iframe.getBoundingClientRect();
@@ -433,6 +447,7 @@ export class SelectionHandler {
 
     const cleanOpts: CleanTextOptions = {
       omitCodeBlocks: this.options.omitCodeBlocks?.() ?? true,
+      omitFileNames: this.options.omitFileNames?.() ?? true,
       stripUrls: this.options.stripUrls?.() ?? true,
     };
 

@@ -80,6 +80,7 @@ export interface ExtensionSettings {
   readonly theme: ThemePreference;
   readonly appearance: AppearanceSettings;
   readonly omitCodeBlocks: boolean;
+  readonly omitFileNames: boolean;
   readonly stripUrls: boolean;
   readonly autoReadSelection: boolean;
   readonly autoReadCorner: DockCorner;
@@ -98,6 +99,7 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
   theme: 'auto',
   appearance: DEFAULT_APPEARANCE,
   omitCodeBlocks: true,
+  omitFileNames: true,
   stripUrls: true,
   autoReadSelection: false,
   autoReadCorner: 'bottom-right',
