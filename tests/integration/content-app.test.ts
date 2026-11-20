@@ -302,4 +302,61 @@ describe('EchoSelectContentApp integration', () => {
     expect(stateRes.data.state.status).toBe('error');
     app.destroy();
   });
+
+  it('continues playing uninterrupted without pausing or restarting when clicking elsewhere after selecting text', async () => {
+    vi.mocked(browser.storage.sync.get).mockResolvedValue({
+      [SETTINGS_STORAGE_KEY]: {
+        ...DEFAULT_SETTINGS,
+        engine: 'web-speech',
+        autoReadSelection: true,
+      },
+    });
+
+    const p = document.createElement('p');
+    p.textContent = 'Texto seleccionado para leer sin interrupciones al hacer clic fuera.';
+    document.body.appendChild(p);
+
+    const range = document.createRange();
+    range.selectNodeContents(p);
+    range.getClientRects = () =>
+      [
+        { top: 10, left: 10, right: 120, bottom: 28, width: 110, height: 18 },
+      ] as unknown as DOMRectList;
+    vi.spyOn(window, 'getSelection').mockReturnValue({
+      isCollapsed: false,
+      rangeCount: 1,
+      toString: () => p.textContent ?? '',
+      getRangeAt: () => range,
+    } as unknown as Selection);
+
+    const app = new EchoSelectContentApp();
+    await app.start();
+
+    // 1. Initial selection triggers Auto-Read playback
+    document.dispatchEvent(new MouseEvent('mouseup', { clientX: 120, clientY: 20, bubbles: true }));
+    await new Promise((r) => setTimeout(r, 20));
+    expect(mockUtterances.length).toBeGreaterThanOrEqual(1);
+    const initialCalls = mockUtterances.length;
+    const cancelSpy = vi.spyOn(window.speechSynthesis, 'cancel');
+    cancelSpy.mockClear();
+
+    // 2. Clicking elsewhere (mousedown -> onClear, then mouseup with residual selection) must NOT pause/cancel or restart
+    document.dispatchEvent(
+      new MouseEvent('mousedown', { clientX: 300, clientY: 300, bubbles: true })
+    );
+    document.dispatchEvent(
+      new MouseEvent('mouseup', { clientX: 300, clientY: 300, bubbles: true })
+    );
+    await new Promise((r) => setTimeout(r, 20));
+
+    expect(cancelSpy).not.toHaveBeenCalled();
+    expect(mockUtterances.length).toBe(initialCalls);
+    const stateRes = (await messageListener!({ type: 'GET_TAB_PLAYBACK_STATE' })) as {
+      ok: boolean;
+      data: { state: { status: string } };
+    };
+    expect(stateRes.data.state.status).toBe('playing');
+
+    app.destroy();
+  });
 });

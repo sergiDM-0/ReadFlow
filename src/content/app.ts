@@ -271,7 +271,10 @@ export class EchoSelectContentApp {
         if (this.isAutoReadActive()) {
           this.floatingBtn?.hide();
           const status = this.ttsManager?.getState().status;
-          if (text === this.lastAutoReadText && (status === 'playing' || status === 'loading')) {
+          if (
+            text === this.lastAutoReadText &&
+            (status === 'playing' || status === 'loading' || status === 'paused')
+          ) {
             return;
           }
           this.lastAutoReadText = text;
@@ -283,7 +286,10 @@ export class EchoSelectContentApp {
       },
       onClear: () => {
         this.pendingText = '';
-        this.lastAutoReadText = '';
+        const status = this.ttsManager?.getState().status;
+        if (!status || status === 'idle' || status === 'error') {
+          this.lastAutoReadText = '';
+        }
         this.floatingBtn?.hide();
       },
     });

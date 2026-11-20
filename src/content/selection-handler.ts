@@ -225,6 +225,7 @@ export class SelectionHandler {
   private hasActiveTrigger = false;
   private lastPointerRect: RectLike | null = null;
   private lastResolvedText = '';
+  private mouseDownPoint: { readonly x: number; readonly y: number } | null = null;
 
   public constructor(options: SelectionHandlerOptions) {
     this.options = options;
@@ -254,6 +255,7 @@ export class SelectionHandler {
     this.hasActiveTrigger = false;
     this.lastPointerRect = null;
     this.lastResolvedText = '';
+    this.mouseDownPoint = null;
   }
 
   public getCurrentSelectedText(): string {
@@ -432,17 +434,31 @@ export class SelectionHandler {
       this.attachToAccessibleIframes(this.abortController.signal);
     }
 
-    if (event instanceof MouseEvent && (event.clientX !== 0 || event.clientY !== 0)) {
-      const owningFrame = findOwningIframe(event.target);
-      const frameOffset = owningFrame?.getBoundingClientRect();
-      const offsetX = frameOffset?.left ?? 0;
-      const offsetY = frameOffset?.top ?? 0;
-      this.lastPointerRect = {
-        top: event.clientY + offsetY,
-        left: event.clientX + offsetX,
-        right: event.clientX + offsetX,
-        bottom: event.clientY + offsetY,
-      };
+    if (event instanceof MouseEvent) {
+      const down = this.mouseDownPoint;
+      this.mouseDownPoint = null;
+      if (
+        down &&
+        event.detail <= 1 &&
+        !event.shiftKey &&
+        Math.hypot(event.clientX - down.x, event.clientY - down.y) <= 2
+      ) {
+        this.clearIfActive();
+        return;
+      }
+
+      if (event.clientX !== 0 || event.clientY !== 0) {
+        const owningFrame = findOwningIframe(event.target);
+        const frameOffset = owningFrame?.getBoundingClientRect();
+        const offsetX = frameOffset?.left ?? 0;
+        const offsetY = frameOffset?.top ?? 0;
+        this.lastPointerRect = {
+          top: event.clientY + offsetY,
+          left: event.clientX + offsetX,
+          right: event.clientX + offsetX,
+          bottom: event.clientY + offsetY,
+        };
+      }
     } else if (event instanceof KeyboardEvent) {
       this.lastPointerRect = null;
     }
@@ -485,6 +501,7 @@ export class SelectionHandler {
     if (this.options.isInsideOwnUi(event.target, path)) {
       return;
     }
+    this.mouseDownPoint = { x: event.clientX, y: event.clientY };
     this.clearIfActive();
   };
 
