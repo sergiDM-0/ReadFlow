@@ -96,5 +96,122 @@ describe('offscreen Piper neural document listener', () => {
     );
     expect(cancelRes).toEqual({ ok: true, data: { cancelled: true } });
     expect(cancelPendingMock).toHaveBeenCalledOnce();
+
+    // OFFSCREEN_PLAY_AUDIO plays synthesized audio and cleans up on end or cancel
+    let lastAudioInstance: {
+      onended: (() => void) | null;
+      onerror: (() => void) | null;
+      play: () => Promise<void>;
+      pause: () => void;
+    } | null = null;
+    const origAudio = globalThis.Audio;
+    const origCreateObjectUrl = URL.createObjectURL;
+    const origRevokeObjectUrl = URL.revokeObjectURL;
+    URL.createObjectURL = vi.fn(() => 'blob:offscreen-audio');
+    URL.revokeObjectURL = vi.fn();
+    globalThis.Audio = vi.fn().mockImplementation(() => {
+      const instance = {
+        src: '',
+        defaultPlaybackRate: 1,
+        playbackRate: 1,
+        onended: null as (() => void) | null,
+        onerror: null as (() => void) | null,
+        play: vi.fn().mockImplementation(async () => {
+          setTimeout(() => instance.onended?.(), 5);
+        }),
+        pause: vi.fn(),
+      };
+      lastAudioInstance = instance;
+      return instance;
+    }) as unknown as typeof Audio;
+
+    try {
+      const playRes = await listener!(
+        {
+          type: 'OFFSCREEN_PLAY_AUDIO',
+          payload: { mimeType: 'audio/wav', audioBase64: 'UklGRg==', rate: 1.25 },
+        },
+        { id: browser.runtime.id }
+      );
+      expect(playRes).toEqual({ ok: true, data: { played: true } });
+      expect(lastAudioInstance).not.toBeNull();
+
+      // Cancelling while playing settles the pending playAudioInOffscreen promise cleanly
+      globalThis.Audio = vi.fn().mockImplementation(() => ({
+        src: '',
+        defaultPlaybackRate: 1,
+        playbackRate: 1,
+        onended: null,
+        onerror: null,
+        play: vi.fn().mockResolvedValue(undefined),
+        pause: vi.fn(),
+      })) as unknown as typeof Audio;
+
+      const pendingPlay = listener!(
+        {
+          type: 'OFFSCREEN_PLAY_AUDIO',
+          payload: { mimeType: 'audio/wav', audioBase64: 'UklGRg==', rate: 1 },
+        },
+        { id: browser.runtime.id }
+      );
+      await listener!({ type: 'OFFSCREEN_PIPER_CANCEL' }, { id: browser.runtime.id });
+      await expect(pendingPlay).resolves.toEqual({ ok: true, data: { played: true } });
+
+      // Playback rejection returns ok: false
+      globalThis.Audio = vi.fn().mockImplementation(() => ({
+        src: '',
+        defaultPlaybackRate: 1,
+        playbackRate: 1,
+        onended: null,
+        onerror: null,
+        play: vi.fn().mockRejectedValue(new Error('Autoplay blocked')),
+        pause: vi.fn(),
+      })) as unknown as typeof Audio;
+
+      const errPlay = await listener!(
+        {
+          type: 'OFFSCREEN_PLAY_AUDIO',
+          payload: { mimeType: 'audio/wav', audioBase64: 'UklGRg==', rate: 1 },
+        },
+        { id: browser.runtime.id }
+      );
+      expect(errPlay).toMatchObject({
+        ok: false,
+        code: 'SYNTHESIS_FAILED',
+        message: 'Autoplay blocked',
+      });
+
+      // Audio onerror event also rejects cleanly
+      globalThis.Audio = vi.fn().mockImplementation(() => {
+        const instance = {
+          src: '',
+          defaultPlaybackRate: 1,
+          playbackRate: 1,
+          onended: null as (() => void) | null,
+          onerror: null as (() => void) | null,
+          play: vi.fn().mockImplementation(async () => {
+            setTimeout(() => instance.onerror?.(), 5);
+          }),
+          pause: vi.fn(),
+        };
+        return instance;
+      }) as unknown as typeof Audio;
+
+      const onErrorPlay = await listener!(
+        {
+          type: 'OFFSCREEN_PLAY_AUDIO',
+          payload: { mimeType: '', audioBase64: 'UklGRg==', rate: 1 },
+        },
+        { id: browser.runtime.id }
+      );
+      expect(onErrorPlay).toMatchObject({
+        ok: false,
+        code: 'SYNTHESIS_FAILED',
+      });
+    } finally {
+      globalThis.Audio = origAudio;
+      URL.createObjectURL = origCreateObjectUrl;
+      URL.revokeObjectURL = origRevokeObjectUrl;
+    }
   });
 });

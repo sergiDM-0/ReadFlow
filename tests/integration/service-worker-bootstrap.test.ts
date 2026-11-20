@@ -91,6 +91,50 @@ describe('service-worker entrypoint wiring', () => {
       payload: { source: 'context-menu', text: 'Texto seleccionado' },
     });
 
+    // If active tab has no content script (e.g. native PDF viewer), context menu falls back to background playback
+    const origAudio = globalThis.Audio;
+    const origCreateObjectUrl = URL.createObjectURL;
+    const origRevokeObjectUrl = URL.revokeObjectURL;
+    URL.createObjectURL = vi.fn(() => 'blob:bg-audio');
+    URL.revokeObjectURL = vi.fn();
+    globalThis.Audio = vi.fn().mockImplementation(() => {
+      const instance = {
+        playbackRate: 1,
+        onended: null as (() => void) | null,
+        onerror: null as (() => void) | null,
+        play: vi.fn().mockImplementation(async () => {
+          setTimeout(() => instance.onended?.(), 5);
+        }),
+      };
+      return instance;
+    }) as unknown as typeof Audio;
+
+    try {
+      // Trigger context menu click without frameId
+      menuListeners.forEach((fn) =>
+        fn({ menuItemId: 'echoselect-read-selection', selectionText: 'Sin frameId' }, { id: 105 })
+      );
+      await new Promise((r) => setTimeout(r, 10));
+
+      vi.mocked(browser.tabs.sendMessage).mockRejectedValueOnce(new Error('No receiving end'));
+      menuListeners.forEach((fn) =>
+        fn(
+          {
+            menuItemId: 'echoselect-read-selection',
+            selectionText: 'Texto en PDF nativo',
+            frameId: 0,
+          } as { menuItemId: string; selectionText?: string },
+          { id: 105 }
+        )
+      );
+      await new Promise((r) => setTimeout(r, 25));
+      expect(piperSynthesizeMock).toHaveBeenCalled();
+    } finally {
+      globalThis.Audio = origAudio;
+      URL.createObjectURL = origCreateObjectUrl;
+      URL.revokeObjectURL = origRevokeObjectUrl;
+    }
+
     // Trigger runtime onMessage
     const res = await messageListeners[0]?.(
       { type: 'DETECT_LANGUAGE', payload: { text: 'Hello world' } },
@@ -145,6 +189,25 @@ describe('service-worker entrypoint wiring', () => {
       { id: browser.runtime.id }
     );
     expect(cancelRes).toEqual({ ok: true, data: { cancelled: true } });
+
+    // Also test Chrome offscreen background playback fallback when tabs.sendMessage rejects
+    vi.mocked(browser.runtime.sendMessage).mockResolvedValue({
+      ok: true,
+      data: { mimeType: 'audio/wav', audioBase64: 'UklGRg==' },
+    });
+    vi.mocked(browser.tabs.sendMessage).mockRejectedValueOnce(new Error('No receiving end'));
+    menuListeners.forEach((fn) =>
+      fn(
+        { menuItemId: 'echoselect-read-selection', selectionText: 'Texto en PDF Chrome' },
+        { id: 108 }
+      )
+    );
+    await new Promise((r) => setTimeout(r, 25));
+    const playCalls = vi
+      .mocked(browser.runtime.sendMessage)
+      .mock.calls.filter((c) => (c[0] as { type?: string })?.type === 'OFFSCREEN_PLAY_AUDIO');
+    expect(playCalls.length).toBeGreaterThanOrEqual(1);
+
     delete (globalThis as unknown as { chrome?: unknown }).chrome;
   });
 });

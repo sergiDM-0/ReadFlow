@@ -84,20 +84,20 @@ async function sendNeuralSynthesize(
 }
 
 function sendNeuralWarmup(lang: string, voiceId?: string): void {
-  void browser.runtime
-    .sendMessage({
+  void Promise.resolve(
+    browser.runtime.sendMessage({
       type: 'NEURAL_TTS_WARMUP',
       payload: { lang, voiceId },
     } satisfies ExtensionMessage)
-    .catch(() => undefined);
+  ).catch(() => undefined);
 }
 
 function sendNeuralCancel(): void {
-  void browser.runtime
-    .sendMessage({
+  void Promise.resolve(
+    browser.runtime.sendMessage({
       type: 'NEURAL_TTS_CANCEL',
     } satisfies ExtensionMessage)
-    .catch(() => undefined);
+  ).catch(() => undefined);
 }
 
 function createEngineForSettings(settings: ExtensionSettings): TTSEngineInterface {
@@ -172,8 +172,16 @@ export class EchoSelectContentApp {
     this.unsubSettings = null;
   }
 
+  private isSameOriginSubframe(): boolean {
+    try {
+      return window !== window.top && Boolean(window.parent?.document);
+    } catch {
+      return false;
+    }
+  }
+
   private shouldBeActive(): boolean {
-    if (!this.settings.enabled) {
+    if (!this.settings.enabled || this.isSameOriginSubframe()) {
       return false;
     }
     return !isHostBlocked(window.location.hostname, this.settings.blockedDomains);
@@ -292,8 +300,16 @@ export class EchoSelectContentApp {
     this.mountAutoReadPill();
   }
 
+  private isTopFrame(): boolean {
+    try {
+      return window === window.top;
+    } catch {
+      return false;
+    }
+  }
+
   private mountAutoReadPill(): void {
-    if (!this.host) return;
+    if (!this.host || !this.isTopFrame()) return;
 
     this.autoReadDock = new AutoReadDock(
       this.host.container,

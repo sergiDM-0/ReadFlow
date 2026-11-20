@@ -194,6 +194,14 @@ export type ExtensionMessage =
     }
   | { readonly type: 'OFFSCREEN_PIPER_CANCEL' }
   | {
+      readonly type: 'OFFSCREEN_PLAY_AUDIO';
+      readonly payload: {
+        readonly mimeType: string;
+        readonly audioBase64: string;
+        readonly rate: PlaybackRate;
+      };
+    }
+  | {
       readonly type: 'LOCAL_TTS_SYNTHESIZE';
       readonly payload: {
         readonly endpointUrl: string;

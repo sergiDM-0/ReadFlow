@@ -82,12 +82,14 @@ function rectsOverlap(
 }
 
 /**
- * Universal Auto-Read floating toggle that can be minimized into a compact 36x36 orb,
- * dragged to magnetically snap into any of the 4 viewport corners, and automatically shifted
- * to avoid colliding with the `MiniPlayer`.
+ * Universal Auto-Read floating toggle that can be minimized into a thin edge indicator line
+ * that reveals the compact 36x36 circle on pointer hover/focus and tucks back into a line
+ * when the pointer leaves, dragged to magnetically snap into any of the 4 viewport corners,
+ * and automatically shifted to avoid colliding with the `MiniPlayer`.
  */
 export class AutoReadDock {
   private readonly root: HTMLDivElement;
+  private readonly edgeLineEl: HTMLSpanElement;
   private readonly toggleBtn: HTMLButtonElement;
   private readonly iconSlot: HTMLSpanElement;
   private readonly labelEl: HTMLSpanElement;
@@ -99,6 +101,8 @@ export class AutoReadDock {
   private active = false;
   private corner: DockCorner = 'bottom-right';
   private minimized = false;
+  private pointerInside = false;
+  private focusInside = false;
   private avoidPlayerCollision = false;
 
   private pointerActive = false;
@@ -123,6 +127,10 @@ export class AutoReadDock {
     this.root = document.createElement('div');
     this.root.className = 'es-autoread-dock';
     this.root.setAttribute('data-es-role', 'autoread-dock');
+
+    this.edgeLineEl = document.createElement('span');
+    this.edgeLineEl.className = 'es-edge-line';
+    this.edgeLineEl.setAttribute('aria-hidden', 'true');
 
     this.toggleBtn = document.createElement('button');
     this.toggleBtn.type = 'button';
@@ -150,14 +158,18 @@ export class AutoReadDock {
     this.collapseBtn.type = 'button';
     this.collapseBtn.className = 'es-autoread-collapse';
     this.collapseBtn.setAttribute('data-es-role', 'autoread-collapse');
-    this.collapseBtn.setAttribute('aria-label', 'Minimizar a bolita en esquina');
-    this.collapseBtn.title = 'Minimizar a bolita';
+    this.collapseBtn.setAttribute('aria-label', 'Esconder en línea lateral');
+    this.collapseBtn.title = 'Esconder en línea lateral (pasa el puntero para ver el círculo)';
     this.collapseBtn.textContent = '−';
 
-    this.root.append(this.toggleBtn, this.collapseBtn);
+    this.root.append(this.edgeLineEl, this.toggleBtn, this.collapseBtn);
     container.appendChild(this.root);
 
     this.root.addEventListener('pointerdown', this.handlePointerDown);
+    this.root.addEventListener('pointerenter', this.handlePointerEnter);
+    this.root.addEventListener('pointerleave', this.handlePointerLeave);
+    this.root.addEventListener('focusin', this.handleFocusIn);
+    this.root.addEventListener('focusout', this.handleFocusOut);
     window.addEventListener('pointermove', this.handlePointerMove);
     window.addEventListener('pointerup', this.handlePointerUp);
     window.addEventListener('pointercancel', this.handlePointerUp);
@@ -173,7 +185,11 @@ export class AutoReadDock {
   public update(state: Partial<AutoReadDockState>): void {
     if (typeof state.active === 'boolean') this.active = state.active;
     if (state.corner) this.corner = state.corner;
-    if (typeof state.minimized === 'boolean') this.minimized = state.minimized;
+    if (typeof state.minimized === 'boolean' && state.minimized !== this.minimized) {
+      this.minimized = state.minimized;
+      this.pointerInside = false;
+      this.focusInside = false;
+    }
     this.render();
     this.updateCollisionAvoidance(this.lastPlayerRect);
   }
@@ -203,6 +219,10 @@ export class AutoReadDock {
 
   public destroy(): void {
     this.root.removeEventListener('pointerdown', this.handlePointerDown);
+    this.root.removeEventListener('pointerenter', this.handlePointerEnter);
+    this.root.removeEventListener('pointerleave', this.handlePointerLeave);
+    this.root.removeEventListener('focusin', this.handleFocusIn);
+    this.root.removeEventListener('focusout', this.handleFocusOut);
     window.removeEventListener('pointermove', this.handlePointerMove);
     window.removeEventListener('pointerup', this.handlePointerUp);
     window.removeEventListener('pointercancel', this.handlePointerUp);
@@ -213,9 +233,15 @@ export class AutoReadDock {
     this.root.remove();
   }
 
+  private isPeeking(): boolean {
+    return this.minimized && (this.pointerInside || this.focusInside);
+  }
+
   private render(): void {
+    const peeking = this.isPeeking();
     this.root.setAttribute('data-corner', this.corner);
     this.root.setAttribute('data-minimized', String(this.minimized));
+    this.root.setAttribute('data-peeking', String(peeking));
     this.root.setAttribute('data-active', String(this.active));
 
     this.toggleBtn.setAttribute('aria-pressed', String(this.active));
@@ -246,12 +272,37 @@ export class AutoReadDock {
     const verticalOffset = this.avoidPlayerCollision
       ? EDGE_MARGIN + COLLISION_OFFSET_PX
       : EDGE_MARGIN;
+    const horizontalMargin = this.minimized && !this.isPeeking() ? 0 : EDGE_MARGIN;
 
     this.root.style.top = isTop ? `${verticalOffset}px` : 'auto';
     this.root.style.bottom = isTop ? 'auto' : `${verticalOffset}px`;
-    this.root.style.left = isLeft ? `${EDGE_MARGIN}px` : 'auto';
-    this.root.style.right = isLeft ? 'auto' : `${EDGE_MARGIN}px`;
+    this.root.style.left = isLeft ? `${horizontalMargin}px` : 'auto';
+    this.root.style.right = isLeft ? 'auto' : `${horizontalMargin}px`;
   }
+
+  private readonly handlePointerEnter = (): void => {
+    if (!this.minimized) return;
+    this.pointerInside = true;
+    this.render();
+  };
+
+  private readonly handlePointerLeave = (): void => {
+    if (!this.minimized || this.didDrag) return;
+    this.pointerInside = false;
+    this.render();
+  };
+
+  private readonly handleFocusIn = (): void => {
+    if (!this.minimized) return;
+    this.focusInside = true;
+    this.render();
+  };
+
+  private readonly handleFocusOut = (): void => {
+    if (!this.minimized || this.didDrag) return;
+    this.focusInside = false;
+    this.render();
+  };
 
   private readonly handleMainClick = (): void => {
     if (this.suppressNextClick) {
@@ -260,6 +311,8 @@ export class AutoReadDock {
     }
     if (this.minimized) {
       this.minimized = false;
+      this.pointerInside = false;
+      this.focusInside = false;
       this.render();
       this.callbacks.onMinimizedChange(false);
       return;
@@ -270,6 +323,8 @@ export class AutoReadDock {
   private readonly handleCollapseClick = (event: MouseEvent): void => {
     event.stopPropagation();
     this.minimized = true;
+    this.pointerInside = false;
+    this.focusInside = false;
     this.render();
     this.callbacks.onMinimizedChange(true);
   };
@@ -329,6 +384,7 @@ export class AutoReadDock {
     }
 
     this.didDrag = false;
+    this.pointerInside = false;
     this.suppressNextClick = true;
     this.root.removeAttribute('data-dragging');
 

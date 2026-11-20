@@ -5,7 +5,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Manifest V3](https://img.shields.io/badge/Manifest-V3-green.svg)](manifest.chrome.json)
 [![Privacy](https://img.shields.io/badge/Privacy-100%25%20Local-success.svg)](SECURITY.md)
-[![UI Bundle](https://img.shields.io/badge/Injected%20UI%20%2B%20Popup-135.8%20KB%20%28%3C200%20KB%29-brightgreen.svg)](scripts/check-size.mjs)
+[![UI Bundle](https://img.shields.io/badge/Injected%20UI%20%2B%20Popup-144.4%20KB%20%28%3C200%20KB%29-brightgreen.svg)](scripts/check-size.mjs)
 
 ---
 
@@ -25,9 +25,9 @@
   2. El **botón flotante de escuchar (`🔊`)** que aparece al seleccionar texto.
   3. La **píldora y la bolita de Auto-lectura**.
   4. El **Mini-reproductor flotante** y todos los controles del panel.
-- **Auto-lectura universal minimizable en bolita y acoplable a 4 esquinas (`AutoReadDock`):**
-  - Al activarla en **ON**, todo texto que selecciones en cualquier página se lee automáticamente (y en `gemini.google.com` lee además las respuestas nuevas en streaming).
-  - Pulsa **`−`** para convertirla en una **bolita discreta de `36×36 px`** con LED de estado (`ON`/`OFF`).
+- **Auto-lectura universal minimizable en línea de borde y acoplable a 4 esquinas (`AutoReadDock`):**
+  - Al activarla en **ON**, todo texto que selecciones en cualquier página, **Google Docs (canvas)**, **PDFs web o locales (`file:///*`)**, `<iframe>`, Shadow DOM o campos `<input>`/`<textarea>` se lee automáticamente (y en `gemini.google.com` lee además las respuestas nuevas en streaming). En visores PDF nativos restringidos del navegador, el menú contextual (**clic derecho → "EchoSelect: Leer selección"**) sintetiza y reproduce el audio directamente desde el documento Offscreen / background.
+  - Pulsa **`−`** para esconderla en el borde de la pantalla dejando únicamente una **línea vertical discreta de `4×32 px` (`.es-edge-line`)** que indica dónde quedó guardada sin estorbar en vídeos ni lecturas; al pasar el puntero por encima o enfocarla con teclado, se desliza suavemente mostrando la **bolita interactiva de `36×36 px`** con LED `ON`/`OFF`, y vuelve a esconderse como línea al retirar el puntero.
   - Arrástrala a cualquier parte de la pantalla para que **se pegue magnéticamente a cualquiera de las 4 esquinas** (`top-left`, `top-right`, `bottom-left`, `bottom-right`), recordando su posición entre pestañas y desplazándose sola (`64 px`) si el Mini-reproductor ocupa la misma esquina.
 - **Mini-reproductor flotante arrastrable (`MiniPlayer`):** Arrastrable libremente con el ratón desde `⋮⋮` o con las flechas del teclado (`Inicio` restablece la esquina), con indicadores de progreso procedural (`1/4+`) y regiones ARIA live WCAG 2.2 AA.
 
@@ -66,7 +66,7 @@ Todos los scripts definidos en [`package.json`](./package.json):
 | `npm run build`         | `node scripts/build.mjs chrome && node scripts/build.mjs firefox`   | Compila los paquetes MV3 de Chrome (`dist/chrome`) y Firefox (`dist/firefox`) con Vite/esbuild y copia los binarios WASM locales. |
 | `npm run build:chrome`  | `node scripts/build.mjs chrome`                                     | Compila únicamente el paquete MV3 para Chromium (incluye `offscreen.html` + `offscreen.js`).                                      |
 | `npm run build:firefox` | `node scripts/build.mjs firefox`                                    | Compila únicamente el paquete MV3 para Firefox/Gecko.                                                                             |
-| `npm run check:size`    | `node scripts/check-size.mjs`                                       | Verifica que la UI inyectada + Popup + Iconos pesen `< 200 KB` (actualmente **135.8 KB**) y que los assets WASM estén completos.  |
+| `npm run check:size`    | `node scripts/check-size.mjs`                                       | Verifica que la UI inyectada + Popup + Iconos pesen `< 200 KB` (actualmente **144.4 KB**) y que los assets WASM estén completos.  |
 | `npm run typecheck`     | `tsc --noEmit`                                                      | Verificación estricta de tipos TypeScript (`strict: true`).                                                                       |
 | `npm run lint`          | `eslint src tests scripts`                                          | Análisis estático con ESLint 9 y `typescript-eslint`.                                                                             |
 | `npm run format:check`  | `prettier --check "src/**/*.ts" "tests/**/*.ts" "scripts/**/*.mjs"` | Verifica formato de código con Prettier.                                                                                          |

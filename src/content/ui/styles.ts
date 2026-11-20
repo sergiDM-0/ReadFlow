@@ -245,12 +245,77 @@ export const SHADOW_UI_STYLES = `
   justify-content: center;
   background: linear-gradient(135deg, var(--es-icon-bg), var(--es-icon-bg-dark));
   color: var(--es-icon-fg);
-  opacity: 0.88;
+  opacity: 0.92;
+  transition: top 160ms ease, bottom 160ms ease, left 180ms cubic-bezier(0.22, 1, 0.36, 1), right 180ms cubic-bezier(0.22, 1, 0.36, 1), width 180ms cubic-bezier(0.22, 1, 0.36, 1), border-radius 180ms ease, opacity 140ms ease, background 140ms ease, box-shadow 140ms ease;
+}
+
+.es-autoread-dock[data-minimized="true"][data-peeking="false"]:not([data-dragging="true"]) {
+  width: 14px;
+  height: 40px;
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+  opacity: 0.85;
+}
+
+.es-edge-line {
+  display: none;
+  width: 4px;
+  height: 32px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, var(--es-icon-bg), var(--es-accent));
+  box-shadow: 0 0 8px rgba(15, 23, 42, 0.35);
+  pointer-events: none;
+  transition: transform 160ms ease, opacity 160ms ease, background 160ms ease;
+}
+
+.es-autoread-dock[data-active="true"] .es-edge-line {
+  background: linear-gradient(180deg, var(--es-status-active), var(--es-icon-bg));
+  box-shadow: 0 0 10px rgba(22, 163, 74, 0.55);
+}
+
+.es-autoread-dock[data-minimized="true"][data-peeking="false"]:not([data-dragging="true"]) .es-edge-line {
+  display: block;
+}
+
+.es-autoread-dock[data-minimized="true"][data-peeking="false"]:not([data-dragging="true"])[data-corner$="-right"] {
+  justify-content: flex-end;
+  padding-right: 2px;
+}
+
+.es-autoread-dock[data-minimized="true"][data-peeking="false"]:not([data-dragging="true"])[data-corner$="-left"] {
+  justify-content: flex-start;
+  padding-left: 2px;
+}
+
+.es-autoread-dock[data-minimized="true"][data-peeking="false"]:not([data-dragging="true"]) .es-autoread-main {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
 }
 
 .es-autoread-dock[data-minimized="true"]:hover,
-.es-autoread-dock[data-minimized="true"]:focus-within {
+.es-autoread-dock[data-minimized="true"]:focus-within,
+.es-autoread-dock[data-minimized="true"][data-peeking="true"] {
   opacity: 1;
+}
+
+.es-autoread-dock[data-minimized="true"][data-peeking="true"]::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 16px;
+}
+
+.es-autoread-dock[data-minimized="true"][data-peeking="true"][data-corner$="-right"]::before {
+  right: -16px;
+}
+
+.es-autoread-dock[data-minimized="true"][data-peeking="true"][data-corner$="-left"]::before {
+  left: -16px;
 }
 
 .es-autoread-main {
@@ -368,7 +433,9 @@ export const SHADOW_UI_STYLES = `
 
 @media (prefers-reduced-motion: reduce) {
   .es-floating-btn,
-  .es-autoread-dock {
+  .es-autoread-dock,
+  .es-autoread-dock[data-minimized="true"],
+  .es-edge-line {
     transition: none;
   }
 }

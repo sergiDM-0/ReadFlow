@@ -1,6 +1,6 @@
 {
   "name": "echo-select-tts",
-  "version": "1.3.1",
+  "version": "1.3.2",
   "description": "100% local, smooth neural text-to-speech (Piper WASM) browser extension with customizable dock icon, procedural streaming, and universal auto-read",
   "license": "MIT",
   "type": "module",

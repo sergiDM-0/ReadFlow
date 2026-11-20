@@ -1,6 +1,9 @@
 import browser from 'webextension-polyfill';
+import { cleanText } from '../core/cleaner';
+import { detectLanguageHeuristic } from '../core/language-detector';
 import { PiperRuntime } from '../core/neural/piper-runtime';
 import { resolvePiperVoiceForLang } from '../core/neural/piper-voices';
+import { createProceduralTextStream } from '../core/procedural-stream';
 import { renderToolbarIconImageData } from '../shared/icon-renderer';
 import { getExtensionStorage, onSettingsChanged } from '../shared/storage';
 import type { ExtensionMessage, ExtensionSettings, MessageResult } from '../shared/types';
@@ -44,7 +47,7 @@ async function ensureOffscreenDocument(offscreen: ChromeOffscreenApi): Promise<v
     offscreenCreatePromise = offscreen
       .createDocument({
         url: 'offscreen.html',
-        reasons: ['WORKERS'],
+        reasons: ['WORKERS', 'AUDIO_PLAYBACK'],
         justification: 'Run 100% local Piper ONNX WebAssembly neural text-to-speech synthesis.',
       })
       .finally(() => {
@@ -86,6 +89,7 @@ async function synthesizeNeuralInBackground(request: {
 }
 
 async function cancelNeuralInBackground(): Promise<void> {
+  fallbackPlaybackSeq += 1;
   const offscreen = getChromeOffscreen();
   if (offscreen) {
     if (offscreen.hasDocument && !(await offscreen.hasDocument())) {
@@ -214,10 +218,87 @@ function registerContextMenu(): void {
     });
 }
 
+let fallbackPlaybackSeq = 0;
+
+async function speakFallbackInBackground(rawText: string): Promise<void> {
+  const token = ++fallbackPlaybackSeq;
+  const settings = await getExtensionStorage().getSettings();
+  if (!settings.enabled || token !== fallbackPlaybackSeq) {
+    return;
+  }
+  const cleaned = cleanText(rawText, {
+    omitCodeBlocks: settings.omitCodeBlocks,
+    stripUrls: settings.stripUrls,
+  });
+  if (!cleaned) {
+    return;
+  }
+
+  const lang = detectLanguageHeuristic(cleaned.slice(0, 500), 'es');
+  const voice = resolvePiperVoiceForLang(lang, settings.voicePreferences);
+
+  const stream = createProceduralTextStream(cleaned, {
+    lang,
+    omitCodeBlocks: settings.omitCodeBlocks,
+    stripUrls: settings.stripUrls,
+    maxChunkChars: 175,
+    firstChunkMaxChars: 48,
+  });
+
+  const chunks: string[] = [];
+  while (stream.hasMore()) {
+    chunks.push(...stream.nextBatch());
+  }
+
+  const offscreen = getChromeOffscreen();
+  for (const chunk of chunks) {
+    if (token !== fallbackPlaybackSeq) {
+      break;
+    }
+    const synthesized = await synthesizeNeuralInBackground({
+      text: chunk,
+      voiceId: voice.id,
+      rate: 1,
+    });
+    if (token !== fallbackPlaybackSeq) {
+      break;
+    }
+    if (offscreen) {
+      await ensureOffscreenDocument(offscreen);
+      await browser.runtime
+        .sendMessage({
+          type: 'OFFSCREEN_PLAY_AUDIO',
+          payload: {
+            mimeType: synthesized.mimeType,
+            audioBase64: synthesized.audioBase64,
+            rate: settings.defaultRate,
+          },
+        } satisfies ExtensionMessage)
+        .catch(() => undefined);
+    } else if (typeof Audio === 'function') {
+      const binary = atob(synthesized.audioBase64);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i += 1) {
+        bytes[i] = binary.charCodeAt(i);
+      }
+      const blobUrl = URL.createObjectURL(new Blob([bytes], { type: synthesized.mimeType }));
+      const audio = new Audio(blobUrl);
+      audio.playbackRate = settings.defaultRate;
+      await new Promise<void>((resolve) => {
+        audio.onended = () => resolve();
+        audio.onerror = () => resolve();
+        void audio.play().catch(() => resolve());
+      });
+      URL.revokeObjectURL(blobUrl);
+    }
+  }
+}
+
 async function sendToggleToActiveTab(
   source: 'shortcut' | 'context-menu',
   tabId?: number,
-  text?: string
+  text?: string,
+  frameId?: number
 ): Promise<void> {
   let targetTabId = tabId;
   if (targetTabId === undefined) {
@@ -228,12 +309,26 @@ async function sendToggleToActiveTab(
     return;
   }
   try {
-    await browser.tabs.sendMessage(targetTabId, {
-      type: 'COMMAND_TOGGLE_READ',
-      payload: { source, text },
-    });
+    if (typeof frameId === 'number') {
+      await browser.tabs.sendMessage(
+        targetTabId,
+        {
+          type: 'COMMAND_TOGGLE_READ',
+          payload: { source, text },
+        },
+        { frameId }
+      );
+    } else {
+      await browser.tabs.sendMessage(targetTabId, {
+        type: 'COMMAND_TOGGLE_READ',
+        payload: { source, text },
+      });
+    }
   } catch {
-    // Active tab may be a restricted browser page (chrome://, about:) without content script.
+    // Active tab may be a native browser PDF viewer or restricted tab without content script.
+    if (text?.trim()) {
+      await speakFallbackInBackground(text).catch(() => undefined);
+    }
   }
 }
 
@@ -259,7 +354,7 @@ browser.contextMenus?.onClicked.addListener((info, tab) => {
   if (info.menuItemId !== CONTEXT_MENU_ID) {
     return;
   }
-  void sendToggleToActiveTab('context-menu', tab?.id, info.selectionText);
+  void sendToggleToActiveTab('context-menu', tab?.id, info.selectionText, info.frameId);
 });
 
 browser.commands?.onCommand.addListener((command) => {
@@ -273,7 +368,8 @@ browser.runtime.onMessage.addListener((message: unknown, sender: browser.Runtime
   if (
     msg?.type === 'OFFSCREEN_PIPER_SYNTHESIZE' ||
     msg?.type === 'OFFSCREEN_PIPER_WARMUP' ||
-    msg?.type === 'OFFSCREEN_PIPER_CANCEL'
+    msg?.type === 'OFFSCREEN_PIPER_CANCEL' ||
+    msg?.type === 'OFFSCREEN_PLAY_AUDIO'
   ) {
     return undefined;
   }

@@ -32,10 +32,14 @@ async function triggerQuickRead(text?: string): Promise<boolean> {
   if (tab?.id === undefined) {
     return false;
   }
-  const response = (await browser.tabs.sendMessage(tab.id, {
-    type: 'COMMAND_TOGGLE_READ',
-    payload: { source: 'popup', text },
-  } satisfies ExtensionMessage)) as MessageResult<{ readonly active: boolean }> | undefined;
+  const response = (await browser.tabs.sendMessage(
+    tab.id,
+    {
+      type: 'COMMAND_TOGGLE_READ',
+      payload: { source: 'popup', text },
+    } satisfies ExtensionMessage,
+    { frameId: 0 }
+  )) as MessageResult<{ readonly active: boolean }> | undefined;
   return Boolean(response && response.ok && response.data.active);
 }
 

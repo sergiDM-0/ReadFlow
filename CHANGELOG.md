@@ -5,6 +5,18 @@ All notable changes to **EchoSelect TTS** will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.2] - 2026-11-20
+
+### Added
+
+- **Edge-Tucked Indicator Line for `AutoReadDock`**:
+  - When minimized (`−`), `AutoReadDock` now tucks flush (`0px`) against the nearest viewport edge, leaving only a sleek `4×32 px` vertical indicator line (`.es-edge-line`) colored by the active ON/OFF state so full-screen videos and documents remain unobstructed.
+  - Hovering (`pointerenter`) or keyboard-focusing (`focusin`) the edge indicator smoothly slides the dock out (`12px`, `data-peeking="true"`) into the full `36×36 px` interactive circle with an anti-flicker `::before` hit bridge, hiding back into the thin line on `pointerleave` / `focusout`.
+- **Universal Selection & Playback Across Google Docs, PDFs, Iframes, Shadow DOM, and Form Controls**:
+  - Added Google Docs canvas selection resolution (`enableGoogleDocsCanvasAnnotations`, `.kix-canvas-tile-selection svg rect`, `.kix-selection-overlay`, `iframe.docs-texteventtarget-iframe` copy event interception, and SVG `rect[aria-label]` geometric fallback).
+  - Added `<input>` / `<textarea>` selection support (`selectionStart`/`selectionEnd`, including inside open Shadow DOMs via `getDeepActiveElement()`), same-origin `<iframe>` coordinate translation, `Ctrl+A`/`Cmd+A` keyboard selection handling, and pointer-coordinate fallback for zero-rect PDF text layers.
+  - Enabled `"all_frames": true` and `"file:///*"` in `manifest.chrome.json` and `manifest.firefox.json` with single-controller frame arbitration (`isSameOriginSubframe()`, `isTopFrame()`, `{ frameId: 0 }`) and direct background/offscreen context-menu speech fallback (`OFFSCREEN_PLAY_AUDIO`, `speakFallbackInBackground`) for restricted native PDF viewers.
+
 ## [1.3.1] - 2026-11-19
 
 ### Added

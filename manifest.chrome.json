@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "EchoSelect TTS",
-  "version": "1.3.0",
+  "version": "1.3.2",
   "description": "100% local, smooth neural text-to-speech (Piper WASM) with customizable dock icon, procedural streaming, and universal auto-read.",
   "permissions": ["storage", "contextMenus", "activeTab", "offscreen"],
   "host_permissions": ["https://huggingface.co/*", "https://*.hf.co/*"],
@@ -35,9 +35,10 @@
   },
   "content_scripts": [
     {
-      "matches": ["http://*/*", "https://*/*"],
+      "matches": ["http://*/*", "https://*/*", "file:///*"],
       "js": ["content.js"],
-      "run_at": "document_idle"
+      "run_at": "document_idle",
+      "all_frames": true
     }
   ],
   "commands": {
