@@ -5,6 +5,7 @@ export type PlaybackRate = (typeof PLAYBACK_RATES)[number];
 
 export type ThemePreference = 'auto' | 'light' | 'dark';
 export type LocalHttpProtocol = 'piper' | 'kokoro-openai';
+export type DockCorner = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
 
 export interface VoiceInfo {
   readonly id: string;
@@ -75,6 +76,8 @@ export interface ExtensionSettings {
   readonly omitCodeBlocks: boolean;
   readonly stripUrls: boolean;
   readonly autoReadSelection: boolean;
+  readonly autoReadCorner: DockCorner;
+  readonly autoReadMinimized: boolean;
   readonly geminiAutoRead: boolean;
   readonly localHttp: LocalHttpConfig;
 }
@@ -91,6 +94,8 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
   omitCodeBlocks: true,
   stripUrls: true,
   autoReadSelection: false,
+  autoReadCorner: 'bottom-right',
+  autoReadMinimized: false,
   geminiAutoRead: false,
   localHttp: {
     endpointUrl: 'http://127.0.0.1:5000/tts',

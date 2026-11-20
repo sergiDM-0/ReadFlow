@@ -247,6 +247,19 @@ describe('EchoSelectContentApp integration', () => {
     ) as HTMLButtonElement | null;
     expect(triggerBtn?.hidden).toBe(true);
 
+    // Minimize Auto-Read dock to orb and snap corner via keyboard (persists through EchoSelectContentApp)
+    const collapseBtn = shadow?.querySelector(
+      'button[data-es-role="autoread-collapse"]'
+    ) as HTMLButtonElement | null;
+    collapseBtn?.click();
+    pill?.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true }));
+    expect(
+      shadow?.querySelector('[data-es-role="autoread-dock"]')?.getAttribute('data-minimized')
+    ).toBe('true');
+    expect(
+      shadow?.querySelector('[data-es-role="autoread-dock"]')?.getAttribute('data-corner')
+    ).toBe('top-right');
+
     app.destroy();
   });
 

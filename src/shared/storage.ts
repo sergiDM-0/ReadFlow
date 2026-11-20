@@ -4,12 +4,23 @@ import {
   DEFAULT_SETTINGS,
   PLAYBACK_RATES,
   type AppearanceSettings,
+  type DockCorner,
   type ExtensionSettings,
   type PlaybackRate,
 } from './types';
 
 export const SETTINGS_STORAGE_KEY = 'echoselect_settings_v1';
 const SAFE_HEX_COLOR_RE = /^#[0-9a-f]{6}$/i;
+const VALID_DOCK_CORNERS: readonly DockCorner[] = [
+  'top-left',
+  'top-right',
+  'bottom-left',
+  'bottom-right',
+];
+
+function isValidDockCorner(value: unknown): value is DockCorner {
+  return typeof value === 'string' && (VALID_DOCK_CORNERS as readonly string[]).includes(value);
+}
 
 function sanitizeHexColor(value: unknown, fallback: string): string {
   if (typeof value === 'string') {
@@ -132,6 +143,13 @@ export function mergeSettings(raw: unknown): ExtensionSettings {
       typeof input.autoReadSelection === 'boolean'
         ? input.autoReadSelection
         : DEFAULT_SETTINGS.autoReadSelection,
+    autoReadCorner: isValidDockCorner(input.autoReadCorner)
+      ? input.autoReadCorner
+      : DEFAULT_SETTINGS.autoReadCorner,
+    autoReadMinimized:
+      typeof input.autoReadMinimized === 'boolean'
+        ? input.autoReadMinimized
+        : DEFAULT_SETTINGS.autoReadMinimized,
     geminiAutoRead:
       typeof input.geminiAutoRead === 'boolean'
         ? input.geminiAutoRead

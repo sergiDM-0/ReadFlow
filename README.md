@@ -24,7 +24,7 @@
 - **Panel de configuración rápido (estilo Reverso):** Al hacer clic en el icono del dock dispones de:
   - **Caja de lectura rápida:** escribe o pega cualquier texto para escucharlo al instante, o pulsa **▶ Leer ahora** para leer la selección de la pestaña activa / **⏹ Detener**.
   - **3 pestañas limpias:** `General` (auto-lectura, velocidad en píldoras, voces), `Apariencia` (vista previa del dock, paletas, selectores de color y tema) y `Avanzado` (motor, servidor local y lista negra de sitios).
-- **Auto-lectura universal ON / OFF:** Píldora flotante limpia con icono SVG (sin emojis duplicados) disponible en cualquier web y sincronizada con el popup. Al activarla en **ON**, todo texto que selecciones se lee automáticamente; en `gemini.google.com` además lee respuestas nuevas en streaming.
+- **Auto-lectura universal ON / OFF minimizable en bolita y acoplable a cualquier esquina:** Píldora flotante limpia con icono SVG que puedes **minimizar a una bolita discreta (`−`)** y **arrastrar para fijar en cualquiera de las 4 esquinas** (arriba/abajo, izquierda/derecha) con memoria persistente y **evitación automática de colisiones** frente al Mini-reproductor. Al activarla en **ON**, todo texto que selecciones se lee automáticamente; en `gemini.google.com` además lee respuestas nuevas en streaming.
 - **Mini-reproductor flotante arrastrable:** Ventana compacta en Shadow DOM que puedes arrastrar a cualquier esquina con el ratón (`⋮⋮`) o mover con teclado (flechas + `Inicio` para restablecer), con Play/Pausa, Detener, Anterior/Siguiente, velocidad en vivo y progreso procedural (`1/4+`).
 - **Limpieza inteligente:** Omite bloques de código `<pre><code>` / Markdown, URLs largas y emojis repetitivos.
 

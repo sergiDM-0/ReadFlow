@@ -6,6 +6,7 @@ export interface MiniPlayerCallbacks {
   readonly onPrev: () => void;
   readonly onNext: () => void;
   readonly onRateChange: (rate: PlaybackRate) => void;
+  readonly onLayoutChange?: (rect: DOMRect | null) => void;
 }
 
 const VIEWPORT_MARGIN = 8;
@@ -132,6 +133,39 @@ export class MiniPlayer {
     this.root.style.top = '';
     this.root.style.right = '';
     this.root.style.bottom = '';
+    this.notifyLayoutChange();
+  }
+
+  public getVisibleRect(): DOMRect | null {
+    if (this.root.hidden) {
+      return null;
+    }
+    const rect = this.root.getBoundingClientRect();
+    if (rect.width > 0 && rect.height > 0) {
+      return rect;
+    }
+    // Provide realistic fallback box in synthetic DOMs (e.g. happy-dom) where layout rects are 0x0.
+    const vw = window.innerWidth || 1024;
+    const vh = window.innerHeight || 768;
+    const width = 280;
+    const height = 48;
+    const left = this.customPosition?.left ?? vw - 20 - width;
+    const top = this.customPosition?.top ?? vh - 20 - height;
+    return {
+      left,
+      top,
+      right: left + width,
+      bottom: top + height,
+      width,
+      height,
+      x: left,
+      y: top,
+      toJSON: () => ({}),
+    } as DOMRect;
+  }
+
+  private notifyLayoutChange(): void {
+    this.callbacks.onLayoutChange?.(this.getVisibleRect());
   }
 
   public update(state: SentenceQueueState): void {
@@ -143,11 +177,13 @@ export class MiniPlayer {
       this.root.hidden = true;
       this.lastAnnouncedStatus = 'idle';
       this.liveAnnouncer.textContent = '';
+      this.notifyLayoutChange();
       return;
     }
 
     this.root.hidden = false;
     this.statusDot.setAttribute('data-status', state.status);
+    this.notifyLayoutChange();
 
     const isNavDisabled = state.status === 'error' || state.status === 'loading';
     this.prevBtn.disabled = isNavDisabled;
@@ -215,6 +251,7 @@ export class MiniPlayer {
     this.root.style.bottom = 'auto';
     this.root.style.left = `${clampedLeft}px`;
     this.root.style.top = `${clampedTop}px`;
+    this.notifyLayoutChange();
   }
 
   private readonly handlePointerDown = (event: PointerEvent): void => {

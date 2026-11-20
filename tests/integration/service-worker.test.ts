@@ -246,6 +246,8 @@ describe('background message handler', () => {
           omitCodeBlocks: true,
           stripUrls: true,
           autoReadSelection: false,
+          autoReadCorner: 'bottom-right',
+          autoReadMinimized: false,
           geminiAutoRead: false,
           localHttp: {
             endpointUrl: 'http://127.0.0.1:5000/tts',
@@ -286,6 +288,8 @@ describe('background message handler', () => {
           omitCodeBlocks: true,
           stripUrls: true,
           autoReadSelection: false,
+          autoReadCorner: 'bottom-right',
+          autoReadMinimized: false,
           geminiAutoRead: false,
           localHttp: {
             endpointUrl: 'http://127.0.0.1:5000/tts',
@@ -330,6 +334,8 @@ describe('background message handler', () => {
           omitCodeBlocks: true,
           stripUrls: true,
           autoReadSelection: false,
+          autoReadCorner: 'bottom-right',
+          autoReadMinimized: false,
           geminiAutoRead: false,
           localHttp: {
             endpointUrl: 'http://127.0.0.1:5000/trusted',
@@ -391,6 +397,8 @@ describe('background message handler', () => {
           omitCodeBlocks: true,
           stripUrls: true,
           autoReadSelection: false,
+          autoReadCorner: 'bottom-right',
+          autoReadMinimized: false,
           geminiAutoRead: false,
           localHttp: {
             endpointUrl: 'http://127.0.0.1:5000/tts',
@@ -463,6 +471,8 @@ describe('background message handler', () => {
               omitCodeBlocks: true,
               stripUrls: true,
               autoReadSelection: false,
+              autoReadCorner: 'bottom-right',
+              autoReadMinimized: false,
               geminiAutoRead: false,
               localHttp: {
                 endpointUrl: 'http://127.0.0.1:5000/tts',
@@ -528,6 +538,8 @@ describe('background message handler', () => {
               omitCodeBlocks: true,
               stripUrls: true,
               autoReadSelection: false,
+              autoReadCorner: 'bottom-right',
+              autoReadMinimized: false,
               geminiAutoRead: false,
               localHttp: {
                 endpointUrl: 'http://127.0.0.1:5000/tts',

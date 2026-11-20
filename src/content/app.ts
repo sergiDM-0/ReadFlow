@@ -31,6 +31,7 @@ import {
 import { GeminiAdapter } from './adapters/gemini-adapter';
 import { GEMINI_SELECTORS } from './adapters/gemini-selectors';
 import { SelectionHandler } from './selection-handler';
+import { AutoReadDock } from './ui/auto-read-dock';
 import { FloatingButton } from './ui/floating-btn';
 import { MiniPlayer } from './ui/mini-player';
 import { ShadowHost } from './ui/shadow-host';
@@ -99,46 +100,6 @@ function sendNeuralCancel(): void {
     .catch(() => undefined);
 }
 
-function createSpeakerSvg(active: boolean): SVGSVGElement {
-  const ns = 'http://www.w3.org/2000/svg';
-  const svg = document.createElementNS(ns, 'svg');
-  svg.setAttribute('viewBox', '0 0 24 24');
-  svg.setAttribute('width', '15');
-  svg.setAttribute('height', '15');
-  svg.setAttribute('fill', 'none');
-  svg.setAttribute('stroke', 'currentColor');
-  svg.setAttribute('stroke-width', '2');
-  svg.setAttribute('stroke-linecap', 'round');
-  svg.setAttribute('stroke-linejoin', 'round');
-  svg.setAttribute('aria-hidden', 'true');
-
-  const body = document.createElementNS(ns, 'polygon');
-  body.setAttribute('points', '11 5 6 9 2 9 2 15 6 15 11 19 11 5');
-  svg.appendChild(body);
-
-  if (active) {
-    const wave1 = document.createElementNS(ns, 'path');
-    wave1.setAttribute('d', 'M15.54 8.46a5 5 0 0 1 0 7.07');
-    const wave2 = document.createElementNS(ns, 'path');
-    wave2.setAttribute('d', 'M19.07 4.93a10 10 0 0 1 0 14.14');
-    svg.append(wave1, wave2);
-  } else {
-    const slash1 = document.createElementNS(ns, 'line');
-    slash1.setAttribute('x1', '22');
-    slash1.setAttribute('y1', '9');
-    slash1.setAttribute('x2', '16');
-    slash1.setAttribute('y2', '15');
-    const slash2 = document.createElementNS(ns, 'line');
-    slash2.setAttribute('x1', '16');
-    slash2.setAttribute('y1', '9');
-    slash2.setAttribute('x2', '22');
-    slash2.setAttribute('y2', '15');
-    svg.append(slash1, slash2);
-  }
-
-  return svg;
-}
-
 function createEngineForSettings(settings: ExtensionSettings): TTSEngineInterface {
   if (settings.engine === 'local-http') {
     return new LocalHttpEngine(settings.localHttp, sendLocalSynthesize);
@@ -156,9 +117,7 @@ export class EchoSelectContentApp {
   private miniPlayer: MiniPlayer | null = null;
   private selectionHandler: SelectionHandler | null = null;
   private geminiAdapter: GeminiAdapter | null = null;
-  private autoReadToggleBtn: HTMLButtonElement | null = null;
-  private autoReadIconSlot: HTMLSpanElement | null = null;
-  private autoReadBadge: HTMLSpanElement | null = null;
+  private autoReadDock: AutoReadDock | null = null;
   private ttsManager: TTSManager | null = null;
   private currentEngine: TTSEngineInterface | null = null;
   private activeEngineConfigKey = '';
@@ -278,6 +237,9 @@ export class EchoSelectContentApp {
           .updateSettings({ defaultRate: rate })
           .catch(() => undefined);
       },
+      onLayoutChange: (rect) => {
+        this.autoReadDock?.updateCollisionAvoidance(rect);
+      },
     });
 
     this.unsubTts = this.ttsManager.subscribe((state) => {
@@ -329,53 +291,54 @@ export class EchoSelectContentApp {
   private mountAutoReadPill(): void {
     if (!this.host) return;
 
-    const pill = document.createElement('button');
-    pill.type = 'button';
-    pill.className = 'es-gemini-pill';
-    pill.setAttribute('data-es-role', 'gemini-autoread-toggle');
-    pill.title = 'Al activar, todo texto que selecciones se leerá automáticamente';
+    this.autoReadDock = new AutoReadDock(
+      this.host.container,
+      {
+        active: this.isAutoReadActive(),
+        corner: this.settings.autoReadCorner,
+        minimized: this.settings.autoReadMinimized,
+      },
+      {
+        onToggleAutoRead: () => {
+          const next = !this.isAutoReadActive();
+          const patch: Partial<ExtensionSettings> = this.geminiAdapter
+            ? { autoReadSelection: next, geminiAutoRead: next }
+            : { autoReadSelection: next };
+          this.settings = { ...this.settings, ...patch };
+          this.syncAutoReadUi();
+          void getExtensionStorage()
+            .updateSettings(patch)
+            .catch(() => undefined);
 
-    const iconSlot = document.createElement('span');
-    iconSlot.className = 'es-pill-icon';
-    iconSlot.setAttribute('aria-hidden', 'true');
+          if (!next) {
+            this.lastAutoReadText = '';
+            this.ttsManager?.stop();
+            return;
+          }
 
-    const label = document.createElement('span');
-    label.className = 'es-pill-label';
-    label.textContent = 'Auto-lectura';
-
-    const badge = document.createElement('span');
-    badge.className = 'es-pill-badge';
-
-    pill.append(iconSlot, label, badge);
-    pill.addEventListener('click', () => {
-      const next = !this.isAutoReadActive();
-      const patch: Partial<ExtensionSettings> = this.geminiAdapter
-        ? { autoReadSelection: next, geminiAutoRead: next }
-        : { autoReadSelection: next };
-      this.settings = { ...this.settings, ...patch };
-      this.syncAutoReadUi();
-      void getExtensionStorage()
-        .updateSettings(patch)
-        .catch(() => undefined);
-
-      if (!next) {
-        this.lastAutoReadText = '';
-        this.ttsManager?.stop();
-        return;
+          const selected =
+            this.pendingText || this.selectionHandler?.getCurrentSelectedText() || '';
+          if (selected) {
+            this.floatingBtn?.hide();
+            this.lastAutoReadText = selected;
+            void this.speakText(selected, 'selection', false);
+          }
+        },
+        onCornerChange: (corner) => {
+          this.settings = { ...this.settings, autoReadCorner: corner };
+          void getExtensionStorage()
+            .updateSettings({ autoReadCorner: corner })
+            .catch(() => undefined);
+        },
+        onMinimizedChange: (minimized) => {
+          this.settings = { ...this.settings, autoReadMinimized: minimized };
+          void getExtensionStorage()
+            .updateSettings({ autoReadMinimized: minimized })
+            .catch(() => undefined);
+        },
       }
+    );
 
-      const selected = this.pendingText || this.selectionHandler?.getCurrentSelectedText() || '';
-      if (selected) {
-        this.floatingBtn?.hide();
-        this.lastAutoReadText = selected;
-        void this.speakText(selected, 'selection', false);
-      }
-    });
-
-    this.autoReadToggleBtn = pill;
-    this.autoReadIconSlot = iconSlot;
-    this.autoReadBadge = badge;
-    this.host.container.appendChild(pill);
     this.syncAutoReadUi();
   }
 
@@ -386,19 +349,12 @@ export class EchoSelectContentApp {
         this.settings.geminiAutoRead || this.settings.autoReadSelection
       );
     }
-    this.updateAutoReadPillVisual(active);
-  }
-
-  private updateAutoReadPillVisual(active: boolean): void {
-    if (!this.autoReadToggleBtn || !this.autoReadIconSlot || !this.autoReadBadge) return;
-    this.autoReadToggleBtn.setAttribute('aria-pressed', String(active));
-    this.autoReadToggleBtn.setAttribute(
-      'aria-label',
-      active ? 'Desactivar auto-lectura al seleccionar' : 'Activar auto-lectura al seleccionar'
-    );
-    this.autoReadIconSlot.textContent = '';
-    this.autoReadIconSlot.appendChild(createSpeakerSvg(active));
-    this.autoReadBadge.textContent = active ? 'ON' : 'OFF';
+    this.autoReadDock?.update({
+      active,
+      corner: this.settings.autoReadCorner,
+      minimized: this.settings.autoReadMinimized,
+    });
+    this.autoReadDock?.updateCollisionAvoidance(this.miniPlayer?.getVisibleRect() ?? null);
   }
 
   private warmupNeuralForText(text: string): void {
@@ -432,10 +388,8 @@ export class EchoSelectContentApp {
     this.speakSeq += 1;
     this.geminiAdapter?.dispose();
     this.geminiAdapter = null;
-    this.autoReadToggleBtn?.remove();
-    this.autoReadToggleBtn = null;
-    this.autoReadIconSlot = null;
-    this.autoReadBadge = null;
+    this.autoReadDock?.destroy();
+    this.autoReadDock = null;
     this.selectionHandler?.detach();
     this.selectionHandler = null;
     this.unsubTts?.();

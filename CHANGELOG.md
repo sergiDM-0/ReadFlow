@@ -5,6 +5,19 @@ All notable changes to **EchoSelect TTS** will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.1] - 2026-11-19
+
+### Added
+
+- **Minimizable, Corner-Snapping Auto-Read Orb (`AutoReadDock`)**:
+  - Added a `−` minimize control that turns the Auto-Read pill into a subtle `36×36 px` floating orb with an `ON`/`OFF` LED dot (`opacity: 0.8` at rest, `1.0` on hover/focus).
+  - Drag the pill or orb anywhere on screen to magnetically snap it to any of the 4 viewport corners (`top-left`, `top-right`, `bottom-left`, `bottom-right`), persisted across tabs and reloads (`autoReadCorner`, `autoReadMinimized`), with keyboard arrow repositioning + `Home` reset.
+  - Automatic collision avoidance automatically shifts `AutoReadDock` out of the way whenever `MiniPlayer` occupies the same corner.
+
+### Fixed
+
+- Preserved natural human voice pitch during live speed changes (`HTMLAudioElement` with `preservesPitch = true` + transparent Web Audio CSP fallback) and decoupled synthesis/prefetch caches from playback rate to prevent stalls and voice timbre shifts.
+
 ## [1.3.0] - 2026-11-19
 
 ### Added
