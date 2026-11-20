@@ -12,8 +12,13 @@ const FENCED_CODE_RE = /```[\s\S]*?```/g;
 const MARKDOWN_IMAGE_RE = /!\[[^\]]*\]\([^)]*\)/g;
 const MARKDOWN_LINK_RE = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g;
 const RAW_URL_RE = /https?:\/\/[^\s<>()]+/g;
+const SPLIT_ATTACHMENT_DOT_RE =
+  /\b([a-zA-Z0-9_-]+)\s+(\.(?:png|jpe?g|gif|webp|svg|bmp|ico|tiff?|heic|heif|avif|pdf|docx?|xlsx?|pptx?|csv|tsv|zip|rar|7z|tar|gz|mp3|wav|ogg|m4a|mp4|mov|webm|\d[\w.-]*))\b/gi;
+const MULTIWORD_MEDIA_FILENAME_RE =
+  /(?:\[\s*|\(\s*)?\b(?:Captura(?:\s+de\s+pantalla)?(?:\s+de)?|Screenshot|Screen\s+Shot|WhatsApp\s+Image|Pasted\s+image|Imagen|Image|Documento|Document)\b[^\n.;,!?]{0,80}\.(?:png|jpe?g|gif|webp|svg|bmp|ico|tiff?|heic|heif|avif|pdf|docx?|xlsx?|pptx?)\b(?:\s*\]|\s*\))?/gi;
+const UUID_TOKEN_RE = /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi;
 const GENERATED_MEDIA_TOKEN_RE =
-  /(?:\[\s*|\(\s*)?(?<![/:\w])(?:(?:image|imagen|img|photo|foto|screenshot|captura|attachment|adjunto|file|archivo|doc|document|documento|scan|clip)[._-]+\d|(?:pasted\s+image|whatsapp\s+image|captura\s+de\s+pantalla)[._\s-]*\d)(?:[\w.-]*\w)?(?:\s*\]|\s*\))?/gi;
+  /(?:\[\s*|\(\s*)?(?<![/:\w])(?:(?:image|imagen|img|photo|foto|screenshot|captura|attachment|adjunto|file|archivo|doc|document|documento|scan|clip|att|pxl|dsc)[._-]+(?=[a-zA-Z0-9._-]*\d)[a-zA-Z0-9._-]{2,}|(?:pasted\s+image|whatsapp\s+image|captura\s+de\s+pantalla)[._\s-]*\d(?:[\w.-]*\w)?)(?:\s*\]|\s*\))?/gi;
 const MEDIA_OR_DOC_FILENAME_RE =
   /(?:\[\s*|\(\s*)?(?<![/:\w])[\w][\w.-]{0,80}\.(?:png|jpe?g|gif|webp|svg|bmp|ico|tiff?|heic|heif|avif|pdf|docx?|xlsx?|pptx?|csv|tsv|zip|rar|7z|tar|gz|mp3|wav|ogg|m4a|mp4|mov|webm)\b(?:\s*\]|\s*\))?/gi;
 const INLINE_CODE_RE = /`([^`]+)`/g;
@@ -31,14 +36,19 @@ const EXCLUDED_ATTACHMENT_TAGS = new Set([
   'mat-icon',
   'user-query-file-preview',
   'uploaded-file',
+  'uploaded-file-preview',
   'file-preview',
+  'file-chip',
+  'image-chip',
   'attachment-chip',
+  'attachment-preview',
+  'file-attachment',
   'source-footnote',
   'citation-chip',
 ]);
 
 const ATTACHMENT_ATTR_RE =
-  /(?:^|[\s_-])(?:file-attachment|attachment-chip|file-preview|file-chip|image-preview|upload-preview|uploaded-file)(?:$|[\s_-])/i;
+  /(?:^|[\s_-])(?:(?:file|image|img|attachment|upload|media)[_-]?(?:preview|chip|card|name|badge|pill|thumbnail|container|wrapper)|uploaded-file|file-attachment)(?:$|[\s_-])/i;
 
 function getCodePlaceholder(lang?: string): string {
   const normalized = (lang ?? '').toLowerCase();
@@ -91,7 +101,12 @@ export function cleanText(raw: string, options: CleanTextOptions = {}): string {
   }
 
   if (omitFileNames) {
-    text = text.replace(MEDIA_OR_DOC_FILENAME_RE, ' ').replace(GENERATED_MEDIA_TOKEN_RE, ' ');
+    text = text
+      .replace(SPLIT_ATTACHMENT_DOT_RE, '$1$2')
+      .replace(MULTIWORD_MEDIA_FILENAME_RE, ' ')
+      .replace(UUID_TOKEN_RE, ' ')
+      .replace(MEDIA_OR_DOC_FILENAME_RE, ' ')
+      .replace(GENERATED_MEDIA_TOKEN_RE, ' ');
   }
 
   text = text

@@ -168,4 +168,42 @@ describe('cleaner', () => {
 
     expect(extractCleanTextFromElement(mjx, { lang: 'es' })).toBe('mayor que 3 igual a algo');
   });
+
+  it('strips split-span filenames, Gemini attachment classes, and multi-word screenshot names', () => {
+    // Multi-word OS screenshot / WhatsApp filenames and UUIDs
+    const raw =
+      'Mira Captura de pantalla de 2026-11-20 15-40-10.png y WhatsApp Image 2026-11-20 at 10.15.00.jpeg y file-abc123xyz y 550e8400-e29b-41d4-a716-446655440000; la respuesta es sí.';
+    const cleaned = cleanText(raw, { lang: 'es' });
+    expect(cleaned).not.toContain('Captura');
+    expect(cleaned).not.toContain('2026-11-20');
+    expect(cleaned).not.toContain('WhatsApp');
+    expect(cleaned).not.toContain('file-abc123xyz');
+    expect(cleaned).not.toContain('550e8400');
+    expect(cleaned).toContain('la respuesta es sí.');
+
+    // Split DOM spans (<span>image</span><span>.3423543-4</span>) and Gemini chip classes
+    const container = document.createElement('div');
+    const splitChip = document.createElement('div');
+    splitChip.className = 'file-name';
+    const s1 = document.createElement('span');
+    s1.textContent = 'image';
+    const s2 = document.createElement('span');
+    s2.textContent = '.3423543-4';
+    splitChip.append(s1, s2);
+
+    const splitText = document.createElement('span');
+    const t1 = document.createElement('span');
+    t1.textContent = 'image';
+    const t2 = document.createElement('span');
+    t2.textContent = '.3423543-4';
+    splitText.append(t1, t2);
+
+    const answer = document.createElement('p');
+    answer.textContent = 'El gráfico muestra crecimiento.';
+    container.append(splitChip, splitText, answer);
+
+    expect(extractCleanTextFromElement(container, { lang: 'es' })).toBe(
+      'El gráfico muestra crecimiento.'
+    );
+  });
 });
