@@ -205,5 +205,13 @@ describe('cleaner', () => {
     expect(extractCleanTextFromElement(container, { lang: 'es' })).toBe(
       'El gráfico muestra crecimiento.'
     );
+
+    const truncatedPdf =
+      'Analiza [v2] Fotos Tercer Corte - Estadística y Probabilidad.pd y dime el resumen.';
+    const cleanedTruncated = cleanText(truncatedPdf, { lang: 'es' });
+    expect(cleanedTruncated).not.toContain('Estadística');
+    expect(cleanedTruncated).not.toContain('Fotos');
+    expect(cleanedTruncated).toContain('Analiza');
+    expect(cleanedTruncated).toContain('dime el resumen.');
   });
 });

@@ -15,7 +15,7 @@ const RAW_URL_RE = /https?:\/\/[^\s<>()]+/g;
 const SPLIT_ATTACHMENT_DOT_RE =
   /\b([a-zA-Z0-9_-]+)\s+(\.(?:png|jpe?g|gif|webp|svg|bmp|ico|tiff?|heic|heif|avif|pdf|docx?|xlsx?|pptx?|csv|tsv|zip|rar|7z|tar|gz|mp3|wav|ogg|m4a|mp4|mov|webm|\d[\w.-]*))\b/gi;
 const MULTIWORD_MEDIA_FILENAME_RE =
-  /(?:\[\s*|\(\s*)?\b(?:Captura(?:\s+de\s+pantalla)?(?:\s+de)?|Screenshot|Screen\s+Shot|WhatsApp\s+Image|Pasted\s+image|Imagen|Image|Documento|Document)\b[^\n.;,!?]{0,80}\.(?:png|jpe?g|gif|webp|svg|bmp|ico|tiff?|heic|heif|avif|pdf|docx?|xlsx?|pptx?)\b(?:\s*\]|\s*\))?/gi;
+  /(?:\[\s*|\(\s*)?(?:\[[^\]]{1,16}\]\s*)?\b(?:Captura(?:\s+de\s+pantalla)?(?:\s+de)?|Screenshot|Screen\s+Shot|WhatsApp\s+Image|Pasted\s+image|Imagen|Image|Fotos?|Documento|Document|Archivo|File|PDF)\b[^\n.;,!?]{0,100}\.(?:png|jpe?g|gif|webp|svg|bmp|ico|tiff?|heic|heif|avif|pdf?|docx?|xlsx?|pptx?)\b(?:\s*\]|\s*\))?|\[[^\]]{1,16}\]\s*[^\n.;,!?]{1,100}\.(?:png|jpe?g|gif|webp|svg|bmp|ico|tiff?|heic|heif|avif|pdf?|docx?|xlsx?|pptx?)\b/gi;
 const UUID_TOKEN_RE = /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi;
 const GENERATED_MEDIA_TOKEN_RE =
   /(?:\[\s*|\(\s*)?(?<![/:\w])(?:(?:image|imagen|img|photo|foto|screenshot|captura|attachment|adjunto|file|archivo|doc|document|documento|scan|clip|att|pxl|dsc)[._-]+(?=[a-zA-Z0-9._-]*\d)[a-zA-Z0-9._-]{2,}|(?:pasted\s+image|whatsapp\s+image|captura\s+de\s+pantalla)[._\s-]*\d(?:[\w.-]*\w)?)(?:\s*\]|\s*\))?/gi;
@@ -34,6 +34,8 @@ const EXCLUDED_ATTACHMENT_TAGS = new Set([
   'img',
   'picture',
   'mat-icon',
+  'mat-chip',
+  'mat-chip-row',
   'user-query-file-preview',
   'uploaded-file',
   'uploaded-file-preview',
@@ -48,7 +50,7 @@ const EXCLUDED_ATTACHMENT_TAGS = new Set([
 ]);
 
 const ATTACHMENT_ATTR_RE =
-  /(?:^|[\s_-])(?:(?:file|image|img|attachment|upload|media)[_-]?(?:preview|chip|card|name|badge|pill|thumbnail|container|wrapper)|uploaded-file|file-attachment)(?:$|[\s_-])/i;
+  /(?:^|[\s_-])(?:(?:file|image|img|attachment|upload|media|query-file)[_-]?(?:preview|chip|card|name|badge|pill|thumbnail|container|wrapper)|uploaded-file|file-attachment)(?:$|[\s_-])/i;
 
 function getCodePlaceholder(lang?: string): string {
   const normalized = (lang ?? '').toLowerCase();
@@ -160,7 +162,10 @@ export function isAttachmentOrMediaNode(el: Element, tag = el.tagName.toLowerCas
   if (EXCLUDED_ATTACHMENT_TAGS.has(tag)) {
     return true;
   }
-  const testId = el.getAttribute('data-test-id') ?? '';
+  if ((el.textContent?.length ?? 0) > 250) {
+    return false;
+  }
+  const testId = el.getAttribute('data-test-id') ?? el.getAttribute('data-testid') ?? '';
   const className = typeof el.className === 'string' ? el.className : '';
   return ATTACHMENT_ATTR_RE.test(testId) || ATTACHMENT_ATTR_RE.test(className);
 }
