@@ -230,6 +230,7 @@ async function speakFallbackInBackground(rawText: string): Promise<void> {
     omitCodeBlocks: settings.omitCodeBlocks,
     omitFileNames: settings.omitFileNames,
     stripUrls: settings.stripUrls,
+    verbalizeMath: false,
   });
   if (!cleaned) {
     return;

@@ -1,8 +1,11 @@
+import { verbalizeMathAndQuantities } from './math-verbalizer';
+
 export interface CleanTextOptions {
   readonly lang?: string;
   readonly omitCodeBlocks?: boolean;
   readonly omitFileNames?: boolean;
   readonly stripUrls?: boolean;
+  readonly verbalizeMath?: boolean;
 }
 
 const FENCED_CODE_RE = /```[\s\S]*?```/g;
@@ -16,7 +19,7 @@ const MEDIA_OR_DOC_FILENAME_RE =
 const INLINE_CODE_RE = /`([^`]+)`/g;
 const MARKDOWN_EMPHASIS_RE = /(\*\*|__|\*|~~)/g;
 const MARKDOWN_HEADING_RE = /(^|\n)\s{0,3}#{1,6}\s+/g;
-const MARKDOWN_QUOTE_RE = /(^|\n)\s*>\s?/g;
+const MARKDOWN_QUOTE_RE = /(^|\n)\s*>\s+/g;
 const REPETITIVE_EMOJI_RE = /(\p{Extended_Pictographic})\1{2,}/gu;
 const MULTI_SPACE_RE = /[ \t]+/g;
 const MULTI_NEWLINE_RE = /\n+/g;
@@ -52,17 +55,29 @@ function getCodePlaceholder(lang?: string): string {
  * @param options Sanitization flags (`lang`, `omitCodeBlocks`, `stripUrls`).
  */
 export function cleanText(raw: string, options: CleanTextOptions = {}): string {
-  const { lang, omitCodeBlocks = true, omitFileNames = true, stripUrls = true } = options;
+  const {
+    lang,
+    omitCodeBlocks = true,
+    omitFileNames = true,
+    stripUrls = true,
+    verbalizeMath = true,
+  } = options;
   if (!raw || !raw.trim()) {
     return '';
   }
 
   let text = raw.replace(/\r\n?/g, '\n');
 
+  const protectedCodeBlocks: string[] = [];
   if (omitCodeBlocks) {
     text = text.replace(FENCED_CODE_RE, ` ${getCodePlaceholder(lang)} `);
   } else {
-    text = text.replace(/```[a-zA-Z0-9_-]*\n?/g, ' ').replace(/```/g, ' ');
+    text = text.replace(FENCED_CODE_RE, (block) => {
+      const inner = block.replace(/^```[a-zA-Z0-9_-]*\n?/, '').replace(/```$/, '');
+      const idx = protectedCodeBlocks.length;
+      protectedCodeBlocks.push(inner.trim());
+      return ` \uE012${idx}\uE013 `;
+    });
   }
 
   if (omitFileNames) {
@@ -90,7 +105,40 @@ export function cleanText(raw: string, options: CleanTextOptions = {}): string {
     .replace(/\s+([.,!?;:])/g, '$1')
     .trim();
 
+  if (verbalizeMath && text) {
+    text = verbalizeMathAndQuantities(text, lang ?? 'es');
+  }
+
+  if (protectedCodeBlocks.length > 0) {
+    text = text
+      .replace(/\uE012(\d+)\uE013/g, (_m, idx) => protectedCodeBlocks[Number(idx)] ?? '')
+      .replace(MULTI_NEWLINE_RE, ' ')
+      .replace(MULTI_SPACE_RE, ' ')
+      .trim();
+  }
+
   return text;
+}
+
+/**
+ * Returns true when a DOM element is a duplicate math representation layer (such as LaTeX
+ * `<annotation>` inside `<math>`, `.katex-html` paired with `.katex-mathml`, or `<mjx-math>`
+ * paired with `<mjx-assistive-mml>`) that would otherwise cause equations to be read twice.
+ */
+export function isDuplicateMathNode(el: Element, tag = el.tagName.toLowerCase()): boolean {
+  if (tag === 'annotation' || tag === 'annotation-xml') {
+    return true;
+  }
+  if (
+    el.classList?.contains('katex-html') &&
+    el.closest('.katex')?.querySelector('.katex-mathml')
+  ) {
+    return true;
+  }
+  if (tag === 'mjx-math' && el.closest('mjx-container')?.querySelector('mjx-assistive-mml')) {
+    return true;
+  }
+  return false;
 }
 
 export function isAttachmentOrMediaNode(el: Element, tag = el.tagName.toLowerCase()): boolean {
@@ -127,7 +175,8 @@ function collectElementText(
     tag === 'script' ||
     tag === 'style' ||
     tag === 'noscript' ||
-    el.getAttribute('aria-hidden') === 'true'
+    el.getAttribute('aria-hidden') === 'true' ||
+    isDuplicateMathNode(el, tag)
   ) {
     return;
   }

@@ -5,7 +5,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Manifest V3](https://img.shields.io/badge/Manifest-V3-green.svg)](manifest.chrome.json)
 [![Privacy](https://img.shields.io/badge/Privacy-100%25%20Local-success.svg)](SECURITY.md)
-[![UI Bundle](https://img.shields.io/badge/Injected%20UI%20%2B%20Popup-146.8%20KB%20%28%3C200%20KB%29-brightgreen.svg)](scripts/check-size.mjs)
+[![UI Bundle](https://img.shields.io/badge/Injected%20UI%20%2B%20Popup-153.1%20KB%20%28%3C200%20KB%29-brightgreen.svg)](scripts/check-size.mjs)
 
 ---
 
@@ -66,7 +66,7 @@ Todos los scripts definidos en [`package.json`](./package.json):
 | `npm run build`         | `node scripts/build.mjs chrome && node scripts/build.mjs firefox`   | Compila los paquetes MV3 de Chrome (`dist/chrome`) y Firefox (`dist/firefox`) con Vite/esbuild y copia los binarios WASM locales. |
 | `npm run build:chrome`  | `node scripts/build.mjs chrome`                                     | Compila únicamente el paquete MV3 para Chromium (incluye `offscreen.html` + `offscreen.js`).                                      |
 | `npm run build:firefox` | `node scripts/build.mjs firefox`                                    | Compila únicamente el paquete MV3 para Firefox/Gecko.                                                                             |
-| `npm run check:size`    | `node scripts/check-size.mjs`                                       | Verifica que la UI inyectada + Popup + Iconos pesen `< 200 KB` (actualmente **146.8 KB**) y que los assets WASM estén completos.  |
+| `npm run check:size`    | `node scripts/check-size.mjs`                                       | Verifica que la UI inyectada + Popup + Iconos pesen `< 200 KB` (actualmente **153.1 KB**) y que los assets WASM estén completos.  |
 | `npm run typecheck`     | `tsc --noEmit`                                                      | Verificación estricta de tipos TypeScript (`strict: true`).                                                                       |
 | `npm run lint`          | `eslint src tests scripts`                                          | Análisis estático con ESLint 9 y `typescript-eslint`.                                                                             |
 | `npm run format:check`  | `prettier --check "src/**/*.ts" "tests/**/*.ts" "scripts/**/*.mjs"` | Verifica formato de código con Prettier.                                                                                          |
@@ -104,7 +104,8 @@ src/
 │       ├── auto-read-dock.ts     # AutoReadDock y resolveNearestCorner(): píldora/bolita acoplable a 4 esquinas
 │       └── styles.ts             # SHADOW_UI_STYLES: hoja CSS encapsulada con soporte light/dark y color unificado
 ├── core/
-│   ├── cleaner.ts                # cleanText(), extractCleanTextFromElement(), extractCleanTextFromRange() (código, URLs e identificadores de imagen/archivo)
+│   ├── cleaner.ts                # cleanText(), extractCleanTextFromElement(), extractCleanTextFromRange() (código, URLs, adjuntos y deduplicación KaTeX/MathML)
+│   ├── math-verbalizer.ts        # verbalizeMathAndQuantities(): lectura natural de comparaciones, raíces, potencias, fracciones, divisas y unidades (ES/EN)
 │   ├── segmenter.ts              # segmentSentences() y segmentForStreaming() (rampa 48 -> 95 -> 140 -> 175 chars)
 │   ├── procedural-stream.ts      # createProceduralTextStream(): paginación perezosa de ~640 chars para textos largos
 │   ├── language-detector.ts      # detectLanguage(), detectLanguageHeuristic(), selectPreferredVoice()

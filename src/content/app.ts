@@ -453,6 +453,7 @@ export class EchoSelectContentApp {
       omitCodeBlocks: this.settings.omitCodeBlocks,
       omitFileNames: this.settings.omitFileNames,
       stripUrls: this.settings.stripUrls,
+      verbalizeMath: false,
     });
     if (!cleaned) {
       return { ok: true, data: { active: false } };

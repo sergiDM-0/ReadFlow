@@ -1,4 +1,5 @@
-import { cleanText, isAttachmentOrMediaNode } from '../../core/cleaner';
+import { cleanText, isAttachmentOrMediaNode, isDuplicateMathNode } from '../../core/cleaner';
+import { detectLanguageHeuristic } from '../../core/language-detector';
 import { segmentSentences } from '../../core/segmenter';
 import { GEMINI_SELECTORS, type SiteSelectorConfig } from './gemini-selectors';
 
@@ -187,7 +188,12 @@ export class GeminiAdapter {
       blocks.forEach((block, blockIdx) => {
         const isLastBlock = blockIdx === blocks.length - 1;
         const rawText = this.extractBlockText(block);
+        const blockLang = detectLanguageHeuristic(
+          rawText,
+          document.documentElement.lang || navigator.language || 'es'
+        );
         const cleaned = cleanText(rawText, {
+          lang: blockLang,
           omitCodeBlocks: this.omitCodeBlocks,
           omitFileNames: this.omitFileNames,
         });
@@ -225,6 +231,7 @@ export class GeminiAdapter {
       const el = node as Element;
       if (
         isExcludedElement(el, this.selectors.excludedSubtrees) ||
+        isDuplicateMathNode(el) ||
         (this.omitFileNames && isAttachmentOrMediaNode(el))
       ) {
         return;

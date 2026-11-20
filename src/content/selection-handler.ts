@@ -261,6 +261,7 @@ export class SelectionHandler {
       omitCodeBlocks: this.options.omitCodeBlocks?.() ?? true,
       omitFileNames: this.options.omitFileNames?.() ?? true,
       stripUrls: this.options.stripUrls?.() ?? true,
+      verbalizeMath: false,
     };
 
     const resolved = this.resolveUniversalSelection(cleanOpts, false);
@@ -293,6 +294,7 @@ export class SelectionHandler {
       omitCodeBlocks: this.options.omitCodeBlocks?.() ?? true,
       omitFileNames: this.options.omitFileNames?.() ?? true,
       stripUrls: this.options.stripUrls?.() ?? true,
+      verbalizeMath: false,
     });
     if (cleaned) {
       this.lastResolvedText = cleaned;
@@ -449,6 +451,7 @@ export class SelectionHandler {
       omitCodeBlocks: this.options.omitCodeBlocks?.() ?? true,
       omitFileNames: this.options.omitFileNames?.() ?? true,
       stripUrls: this.options.stripUrls?.() ?? true,
+      verbalizeMath: false,
     };
 
     const resolved = this.resolveUniversalSelection(cleanOpts, true);

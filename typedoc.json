@@ -5,6 +5,7 @@
     "src/shared/storage.ts",
     "src/shared/icon-renderer.ts",
     "src/core/cleaner.ts",
+    "src/core/math-verbalizer.ts",
     "src/core/segmenter.ts",
     "src/core/procedural-stream.ts",
     "src/core/language-detector.ts",

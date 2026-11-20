@@ -126,4 +126,30 @@ describe('cleaner', () => {
       'image.3423543-4.png'
     );
   });
+
+  it('does not read KaTeX/MathML equations twice (annotation + rendered math) and verbalizes >3 = algo once', () => {
+    const katex = document.createElement('span');
+    katex.className = 'katex';
+    const mathml = document.createElement('span');
+    mathml.className = 'katex-mathml';
+    const math = document.createElement('math');
+    const semantics = document.createElement('semantics');
+    const mrow = document.createElement('mrow');
+    mrow.textContent = '>3 = algo';
+    const annotation = document.createElement('annotation');
+    annotation.setAttribute('encoding', 'application/x-tex');
+    annotation.textContent = '>3 = algo';
+    semantics.append(mrow, annotation);
+    math.appendChild(semantics);
+    mathml.appendChild(math);
+
+    const katexHtml = document.createElement('span');
+    katexHtml.className = 'katex-html';
+    katexHtml.textContent = '>3 = algo';
+    katex.append(mathml, katexHtml);
+
+    const text = extractCleanTextFromElement(katex, { lang: 'es' });
+    expect(text).toBe('mayor que 3 igual a algo');
+    expect(text.match(/mayor que 3/g)).toHaveLength(1);
+  });
 });

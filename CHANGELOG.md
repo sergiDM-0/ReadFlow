@@ -18,6 +18,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Enabled `"all_frames": true` and `"file:///*"` in `manifest.chrome.json` and `manifest.firefox.json` with single-controller frame arbitration (`isSameOriginSubframe()`, `isTopFrame()`, `{ frameId: 0 }`) and direct background/offscreen context-menu speech fallback (`OFFSCREEN_PLAY_AUDIO`, `speakFallbackInBackground`) for restricted native PDF viewers.
 - **Automatic Image & Attachment Filename Filtering (`omitFileNames`)**:
   - Strips generated image, screenshot, and document tokens (e.g., `image.3423543-4`, `IMG_20261120_145504.jpg`, `.pdf`/`.png` filenames) and skips attachment preview DOM chips (`<user-query-file-preview>`, `<attachment-chip>`, `<mat-icon>`, `[data-test-id*="attachment"]`) in Gemini and web selections by default, with a new **"Omitir nombres de imágenes y archivos"** toggle (`#toggle-omit-filenames`) in the control panel.
+- **Language-Aware Math & Quantities Verbalizer (`math-verbalizer.ts`) & Math DOM Deduplication**:
+  - Prevents KaTeX, MathJax, and MathML equations (e.g., `>3 = algo`) from being read twice by skipping duplicate `<annotation>`, `<annotation-xml>`, `.katex-html`, and `<mjx-math>` layers in `cleaner.ts` and `GeminiAdapter`, and fixed `MARKDOWN_QUOTE_RE` so leading `>3` comparisons are never stripped.
+  - Added `verbalizeMathAndQuantities()` (`es` / `en`) to naturally pronounce comparisons (`>`, `<`, `>=`, `<=`, `!=`, `≈`), arithmetic, roots (`√`, `∛`), powers (`²`, `³`, `^`), common fractions (`1/2`, `3/4`), scientific notation (`3.5e-4`), percentages, temperatures (`°C`/`°F`), currencies (`$`, `€`, `£`), and measurement/computing units (`km/h`, `kg`, `ms`, `GB`, etc.) without breaking hyphenated words, file paths, or shortcuts (`Ctrl+C`).
 
 ## [1.3.1] - 2026-11-19
 
