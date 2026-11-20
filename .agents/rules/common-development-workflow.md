@@ -1,11 +1,12 @@
 ---
 trigger: always_on
 ---
+
 # Development Workflow
 
 > This file extends [common/git-workflow.md](common-git-workflow.md) with the full feature development process that happens before git operations.
 
-The Feature Implementation Workflow describes the development pipeline: research, planning, TDD, code review, and then committing to git.
+The Feature Implementation Workflow describes the development pipeline: research, planning, TDD, code review, mandatory documentation synchronization (`doc-sync-closure`), and version control closure (`version-control-closure`).
 
 ## Feature Implementation Workflow
 
@@ -35,13 +36,18 @@ The Feature Implementation Workflow describes the development pipeline: research
    - Address CRITICAL and HIGH issues
    - Fix MEDIUM issues when possible
 
-4. **Commit & Push**
-   - Detailed commit messages
-   - Follow conventional commits format
-   - See [git-workflow.md](common-git-workflow.md) for commit message format and PR process
+4. **Documentation Closure (`doc-sync-closure` skill)** _(mandatory Phase 1 of task closure)_
+   - Every completed feature, fix, refactor, or change MUST execute [doc-sync-closure](../skills/doc-sync-closure/SKILL.md) immediately after code review and **before** version control closure.
+   - Apply fast-path diff triage: skip redundant doc churn for strictly internal/test-only edits; otherwise synchronize only the affected canonical sources (`CHANGELOG.md`, `README.md`, `CONTRIBUTING.md`, `typedoc.json`, JSDoc `/** ... */` on exported `src/` symbols, and synchronized `version` strings in `package.json` / `manifest.*.json`).
+   - Run `npm run docs:api` when `src/` exports or `typedoc.json` change, and never create duplicate summary files or track gitignored `docs-private/` / `Documents/`.
 
-5. **Pre-Review Checks**
+5. **Version Control Closure (`version-control-closure` skill)** _(mandatory Phase 2 of task closure)_
+   - Immediately after `doc-sync-closure`, execute [version-control-closure](../skills/version-control-closure/SKILL.md) as the terminal step of the workflow.
+   - Run delta-aware verification gates (`npm run format:check`, `npm run typecheck`, `npm run lint`, `npm run test:coverage` >= 80%, `npm run build`, `npm run check:size` < 200 KB) without repeating heavy steps unnecessarily if only Markdown changed and Prettier passes.
+   - Audit `git status --short` and `git diff` for staging hygiene (no private docs, build artifacts, secrets, or stray `console.log`), then record atomic Conventional Commits aligned with [git-workflow.md](common-git-workflow.md).
+
+6. **Pre-Review / PR Checks**
    - Verify all automated checks (CI/CD) are passing
    - Resolve any merge conflicts
    - Ensure branch is up to date with target branch
-   - Only request review after these checks pass
+   - Only push or request PR review when explicitly requested and after all checks pass
