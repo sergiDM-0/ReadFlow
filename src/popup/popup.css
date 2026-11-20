@@ -7,6 +7,9 @@
   --control-border: #64748b;
   --text: #0f172a;
   --muted: #475569;
+  --icon-bg: #2563eb;
+  --icon-bg-dark: #1d4ed8;
+  --icon-fg: #ffffff;
   --accent: #1d4ed8;
   --accent-hover: #1e40af;
   --accent-fg: #ffffff;
@@ -48,8 +51,10 @@
 }
 
 body {
-  margin: 0;
-  width: 356px;
+  margin: 0 auto;
+  width: 100%;
+  min-width: 356px;
+  max-width: 460px;
   padding: 12px 14px 10px;
   background: var(--bg);
   color: var(--text);
@@ -395,10 +400,24 @@ button:focus-visible {
   width: 36px;
   height: 36px;
   border-radius: 10px;
-  border: 1px solid var(--accent);
-  background: var(--bg);
-  color: var(--accent);
+  border: 1.5px solid var(--accent);
+  background: linear-gradient(135deg, var(--icon-bg), var(--icon-bg-dark));
+  color: var(--icon-fg);
   font-size: 16px;
+}
+
+.preview-autoread-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1.5px solid var(--accent);
+  background: linear-gradient(135deg, var(--icon-bg), var(--icon-bg-dark));
+  color: var(--icon-fg);
+  font-size: 11px;
+  font-weight: 700;
 }
 
 .preview-caption {

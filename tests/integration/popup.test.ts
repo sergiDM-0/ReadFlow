@@ -28,6 +28,8 @@ function createPopupDom(): HTMLElement {
     ['section', { id: 'panel-appearance', role: 'tabpanel', 'data-panel': 'appearance' }],
     ['section', { id: 'panel-advanced', role: 'tabpanel', 'data-panel': 'advanced' }],
     ['div', { id: 'color-presets' }],
+    ['div', { id: 'quick-color-presets' }],
+    ['input', { id: 'quick-color-picker', type: 'color', value: '#2563eb' }],
     ['input', { id: 'input-icon-bg', type: 'color', value: '#2563eb' }],
     ['input', { id: 'input-icon-fg', type: 'color', value: '#ffffff' }],
     ['input', { id: 'input-accent-color', type: 'color', value: '#1d4ed8' }],
@@ -202,6 +204,17 @@ describe('popup controller', () => {
       iconBgColor: '#7c3aed',
       iconFgColor: '#fef08a',
       accentColor: '#6d28d9',
+    });
+
+    // Quick color picker on the main General tab updates the unified icon + UI color in one step
+    const quickColorInput = document.querySelector('#quick-color-picker') as HTMLInputElement;
+    quickColorInput.value = '#e11d48';
+    quickColorInput.dispatchEvent(new Event('input'));
+    await new Promise((r) => setTimeout(r, 10));
+    expect((await storage.getSettings()).appearance).toEqual({
+      iconBgColor: '#e11d48',
+      iconFgColor: '#ffffff',
+      accentColor: '#e11d48',
     });
 
     (document.querySelector('#btn-reset-appearance') as HTMLButtonElement).click();

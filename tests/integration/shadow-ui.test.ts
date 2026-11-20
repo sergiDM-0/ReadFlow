@@ -21,6 +21,8 @@ describe('Shadow DOM UI lifecycle', () => {
     expect(hostEls[0]).toBe(host.hostElement);
     expect(hostEls[0]?.shadowRoot).not.toBeNull();
     expect(host.hostElement.style.getPropertyValue('--es-accent')).toBe('#047857');
+    expect(host.hostElement.style.getPropertyValue('--es-icon-bg')).toBe('#059669');
+    expect(host.hostElement.style.getPropertyValue('--es-icon-fg')).toBe('#ffffff');
 
     host.destroy();
     expect(document.querySelector('echo-select-ui')).toBeNull();

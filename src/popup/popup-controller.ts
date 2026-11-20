@@ -107,9 +107,19 @@ function applyPopupThemeAndColors(
     target.setAttribute('data-theme', theme);
   }
 
+  const iconBg = isValidHexColor(appearance.iconBgColor)
+    ? appearance.iconBgColor
+    : DEFAULT_APPEARANCE.iconBgColor;
+  const iconFg = isValidHexColor(appearance.iconFgColor)
+    ? appearance.iconFgColor
+    : getContrastingForeground(iconBg);
   const accent = isValidHexColor(appearance.accentColor)
     ? appearance.accentColor
     : DEFAULT_APPEARANCE.accentColor;
+
+  target.style.setProperty('--icon-bg', iconBg);
+  target.style.setProperty('--icon-bg-dark', darkenHexColor(iconBg, 0.2));
+  target.style.setProperty('--icon-fg', iconFg);
   target.style.setProperty('--accent', accent);
   target.style.setProperty('--accent-hover', darkenHexColor(accent, 0.16));
   target.style.setProperty('--accent-fg', getContrastingForeground(accent));
@@ -178,6 +188,8 @@ export async function initPopup(options: InitPopupOptions): Promise<void> {
 
   // Appearance controls
   const presetGrid = root.querySelector('#color-presets') as HTMLElement | null;
+  const quickPresetGrid = root.querySelector('#quick-color-presets') as HTMLElement | null;
+  const quickColorPicker = root.querySelector('#quick-color-picker') as HTMLInputElement | null;
   const inputIconBg = root.querySelector('#input-icon-bg') as HTMLInputElement | null;
   const inputIconFg = root.querySelector('#input-icon-fg') as HTMLInputElement | null;
   const inputAccentColor = root.querySelector('#input-accent-color') as HTMLInputElement | null;
@@ -226,9 +238,9 @@ export async function initPopup(options: InitPopupOptions): Promise<void> {
       });
   };
 
-  const renderColorPresets = () => {
-    if (!presetGrid) return;
-    presetGrid.textContent = '';
+  const populatePresetContainer = (container: HTMLElement | null) => {
+    if (!container) return;
+    container.textContent = '';
 
     for (const preset of ICON_COLOR_PRESETS) {
       const btn = document.createElement('button');
@@ -249,8 +261,13 @@ export async function initPopup(options: InitPopupOptions): Promise<void> {
         persistPatch({ appearance: { ...preset.appearance } }, () => syncDom());
       });
 
-      presetGrid.appendChild(btn);
+      container.appendChild(btn);
     }
+  };
+
+  const renderColorPresets = () => {
+    populatePresetContainer(presetGrid);
+    populatePresetContainer(quickPresetGrid);
   };
 
   const handleRemoveDomain = (domain: string, removedIndex: number) => {
@@ -310,6 +327,7 @@ export async function initPopup(options: InitPopupOptions): Promise<void> {
     if (inputEndpoint) inputEndpoint.value = settings.localHttp.endpointUrl;
     if (selectProtocol) selectProtocol.value = settings.localHttp.protocol;
 
+    if (quickColorPicker) quickColorPicker.value = settings.appearance.iconBgColor;
     if (inputIconBg) inputIconBg.value = settings.appearance.iconBgColor;
     if (inputIconFg) inputIconFg.value = settings.appearance.iconFgColor;
     if (inputAccentColor) inputAccentColor.value = settings.appearance.accentColor;
@@ -434,10 +452,28 @@ export async function initPopup(options: InitPopupOptions): Promise<void> {
     persistPatch({ omitCodeBlocks: toggleOmitCode.checked });
   });
 
+  const applyUnifiedPrimaryColor = (value: string) => {
+    if (!isValidHexColor(value)) return;
+    persistPatch(
+      {
+        appearance: {
+          iconBgColor: value,
+          accentColor: value,
+          iconFgColor: getContrastingForeground(value),
+        },
+      },
+      () => syncDom()
+    );
+  };
+
+  quickColorPicker?.addEventListener('input', () => {
+    applyUnifiedPrimaryColor(quickColorPicker.value);
+  });
+
   inputIconBg?.addEventListener('input', () => {
     const value = inputIconBg.value;
     if (!isValidHexColor(value)) return;
-    persistPatch({ appearance: { iconBgColor: value } }, () => syncDom());
+    persistPatch({ appearance: { iconBgColor: value, accentColor: value } }, () => syncDom());
   });
 
   inputIconFg?.addEventListener('input', () => {

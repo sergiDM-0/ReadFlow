@@ -15,6 +15,9 @@ export const SHADOW_UI_STYLES = `
   --es-border: #6b7280;
   --es-text: #111827;
   --es-text-muted: #4b5563;
+  --es-icon-bg: #2563eb;
+  --es-icon-bg-dark: #1d4ed8;
+  --es-icon-fg: #ffffff;
   --es-accent: #1d4ed8;
   --es-accent-hover: #1e40af;
   --es-accent-fg: #ffffff;
@@ -68,17 +71,17 @@ export const SHADOW_UI_STYLES = `
   width: 38px;
   height: 38px;
   padding: 0;
-  border: 1px solid var(--es-border);
-  border-radius: 10px;
-  background: var(--es-bg);
-  color: var(--es-accent);
+  border: 1.5px solid var(--es-accent);
+  border-radius: 11px;
+  background: linear-gradient(135deg, var(--es-icon-bg), var(--es-icon-bg-dark));
+  color: var(--es-icon-fg);
   box-shadow: var(--es-shadow);
   cursor: pointer;
-  transition: transform 120ms ease, background-color 120ms ease;
+  transition: transform 120ms ease, filter 120ms ease;
 }
 
 .es-floating-btn:hover {
-  background: var(--es-bg-hover);
+  filter: brightness(1.08);
   transform: translateY(-1px);
 }
 
@@ -99,7 +102,7 @@ export const SHADOW_UI_STYLES = `
   align-items: center;
   gap: 6px;
   padding: 8px 12px;
-  border: 1px solid var(--es-border);
+  border: 1.5px solid var(--es-accent);
   border-radius: 16px;
   background: var(--es-bg);
   color: var(--es-text);
@@ -151,7 +154,7 @@ export const SHADOW_UI_STYLES = `
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--es-status-active);
+  background: var(--es-accent);
   flex-shrink: 0;
 }
 
@@ -212,14 +215,14 @@ export const SHADOW_UI_STYLES = `
   align-items: center;
   gap: 2px;
   padding: 3px 4px 3px 6px;
-  border: 1px solid var(--es-border);
+  border: 1.5px solid var(--es-accent);
   border-radius: 999px;
   background: var(--es-bg);
   color: var(--es-text);
   box-shadow: var(--es-shadow);
   user-select: none;
   touch-action: none;
-  transition: top 160ms ease, bottom 160ms ease, left 160ms ease, right 160ms ease, opacity 140ms ease, border-color 140ms ease;
+  transition: top 160ms ease, bottom 160ms ease, left 160ms ease, right 160ms ease, opacity 140ms ease, background 140ms ease, border-color 140ms ease;
 }
 
 .es-autoread-dock[data-dragging="true"] {
@@ -231,6 +234,8 @@ export const SHADOW_UI_STYLES = `
 
 .es-autoread-dock[data-active="true"] {
   border-color: var(--es-accent);
+  background: linear-gradient(135deg, var(--es-icon-bg), var(--es-icon-bg-dark));
+  color: var(--es-icon-fg);
 }
 
 .es-autoread-dock[data-minimized="true"] {
@@ -238,7 +243,9 @@ export const SHADOW_UI_STYLES = `
   width: 36px;
   height: 36px;
   justify-content: center;
-  opacity: 0.8;
+  background: linear-gradient(135deg, var(--es-icon-bg), var(--es-icon-bg-dark));
+  color: var(--es-icon-fg);
+  opacity: 0.88;
 }
 
 .es-autoread-dock[data-minimized="true"]:hover,
@@ -256,7 +263,7 @@ export const SHADOW_UI_STYLES = `
   border: none;
   border-radius: 999px;
   background: transparent;
-  color: var(--es-text);
+  color: inherit;
   font-size: 12px;
   font-weight: 600;
   line-height: 1;
@@ -264,7 +271,7 @@ export const SHADOW_UI_STYLES = `
 }
 
 .es-autoread-main:hover {
-  background: var(--es-bg-hover);
+  background: rgba(255, 255, 255, 0.12);
 }
 
 .es-autoread-dock[data-minimized="true"] .es-autoread-main {
@@ -285,11 +292,12 @@ export const SHADOW_UI_STYLES = `
   width: 15px;
   height: 15px;
   flex-shrink: 0;
-  color: var(--es-text-muted);
+  color: var(--es-accent);
 }
 
-.es-autoread-dock[data-active="true"] .es-pill-icon {
-  color: var(--es-accent);
+.es-autoread-dock[data-active="true"] .es-pill-icon,
+.es-autoread-dock[data-minimized="true"] .es-pill-icon {
+  color: var(--es-icon-fg);
 }
 
 .es-pill-badge {
@@ -303,23 +311,23 @@ export const SHADOW_UI_STYLES = `
   font-weight: 700;
   letter-spacing: 0.03em;
   background: var(--es-bg-hover);
-  color: var(--es-text-muted);
+  color: var(--es-accent);
 }
 
 .es-autoread-dock[data-active="true"] .es-pill-badge {
-  background: var(--es-status-active);
-  color: #ffffff;
+  background: rgba(255, 255, 255, 0.22);
+  color: var(--es-icon-fg);
 }
 
 .es-orb-dot {
   display: none;
   position: absolute;
-  top: 4px;
-  right: 4px;
+  top: 3px;
+  right: 3px;
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--es-text-muted);
+  background: #9ca3af;
   border: 1.5px solid var(--es-bg);
 }
 
@@ -341,7 +349,8 @@ export const SHADOW_UI_STYLES = `
   border: none;
   border-radius: 50%;
   background: transparent;
-  color: var(--es-text-muted);
+  color: inherit;
+  opacity: 0.8;
   font-size: 14px;
   font-weight: 700;
   line-height: 1;
@@ -349,8 +358,8 @@ export const SHADOW_UI_STYLES = `
 }
 
 .es-autoread-collapse:hover {
-  background: var(--es-bg-hover);
-  color: var(--es-text);
+  background: rgba(255, 255, 255, 0.16);
+  opacity: 1;
 }
 
 .es-autoread-collapse[hidden] {

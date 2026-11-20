@@ -47,11 +47,19 @@ export class ShadowHost {
   }
 
   public setAppearance(appearance: AppearanceSettings): void {
-    const accent = isValidHexColor(appearance.accentColor)
-      ? appearance.accentColor
-      : DEFAULT_APPEARANCE.accentColor;
+    const iconBg = isValidHexColor(appearance.iconBgColor)
+      ? appearance.iconBgColor
+      : DEFAULT_APPEARANCE.iconBgColor;
+    const iconFg = isValidHexColor(appearance.iconFgColor)
+      ? appearance.iconFgColor
+      : getContrastingForeground(iconBg);
+    const accent = isValidHexColor(appearance.accentColor) ? appearance.accentColor : iconBg;
     const hover = darkenHexColor(accent, 0.16);
     const fg = getContrastingForeground(accent);
+
+    this.hostElement.style.setProperty('--es-icon-bg', iconBg);
+    this.hostElement.style.setProperty('--es-icon-bg-dark', darkenHexColor(iconBg, 0.2));
+    this.hostElement.style.setProperty('--es-icon-fg', iconFg);
     this.hostElement.style.setProperty('--es-accent', accent);
     this.hostElement.style.setProperty('--es-accent-hover', hover);
     this.hostElement.style.setProperty('--es-accent-fg', fg);
