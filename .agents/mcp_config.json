@@ -3,7 +3,7 @@
     "ecc-memory": {
       "command": "node",
       "args": [
-        "/home/sergio/Proyectos/Text_to_Speech/.agents/scripts/memory-mcp.mjs"
+        "/home/sergio/Proyectos/ReadFlow/.agents/scripts/memory-mcp.mjs"
       ],
       "env": {
         "ECC_MEMORY_HARNESS": "antigravity"

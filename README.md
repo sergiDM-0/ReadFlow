@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/logo-name.jpeg" alt="ReadFlow" width="320" />
+</p>
+
 # ReadFlow
 
 > **Extensión de navegador 100 % local de síntesis de voz neuronal (Piper ONNX + WebAssembly) con streaming procedural incremental, auto-lectura universal acoplable a cualquier esquina y personalización de color en tiempo real.**
@@ -92,7 +96,11 @@ src/
 │   └── offscreen.ts              # Listener de OFFSCREEN_PIPER_SYNTHESIZE / WARMUP / CANCEL sobre PiperRuntime
 ├── content/
 │   ├── index.ts                  # Punto de entrada IIFE del content script
-│   ├── app.ts                    # ReadFlowContentApp: coordina UI Shadow DOM, streaming procedural y motores
+│   ├── app.ts                    <p align="center">
+  <img src="assets/logo-name.jpeg" alt="ReadFlow" width="320" />
+</p>
+
+# ReadFlowContentApp: coordina UI Shadow DOM, streaming procedural y motores
 │   ├── selection-handler.ts      # SelectionHandler y clampFloatingPosition()
 │   ├── adapters/
 │   │   ├── gemini-selectors.ts   # GEMINI_SELECTORS: selectores DOM aislados para gemini.google.com
