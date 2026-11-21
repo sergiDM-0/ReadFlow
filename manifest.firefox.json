@@ -2,11 +2,16 @@
   "manifest_version": 3,
   "name": "ReadFlow",
   "version": "1.3.2",
+  "author": "sergiDM-0",
+  "homepage_url": "https://sergidm-0.github.io/ReadFlow/",
   "description": "100% local, smooth neural text-to-speech (Piper WASM) with customizable dock icon, procedural streaming, and universal auto-read.",
   "browser_specific_settings": {
     "gecko": {
       "id": "readflow@readflow.local",
-      "strict_min_version": "109.0"
+      "strict_min_version": "109.0",
+      "data_collection_permissions": {
+        "required": ["none"]
+      }
     }
   },
   "permissions": ["storage", "contextMenus", "activeTab"],
