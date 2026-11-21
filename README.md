@@ -8,7 +8,8 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Manifest V3](https://img.shields.io/badge/Manifest-V3-green.svg)](manifest.chrome.json)
-[![Privacy](https://img.shields.io/badge/Privacy-100%25%20Local-success.svg)](SECURITY.md)
+[![Privacy](https://img.shields.io/badge/Privacy-100%25%20Local-success.svg)](PRIVACY.md)
+[![Security](https://img.shields.io/badge/Security-Policy-blue.svg)](SECURITY.md)
 [![UI Bundle](https://img.shields.io/badge/Injected%20UI%20%2B%20Popup-153.1%20KB%20%28%3C200%20KB%29-brightgreen.svg)](scripts/check-size.mjs)
 
 ---
