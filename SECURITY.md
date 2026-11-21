@@ -8,7 +8,7 @@
 
 ## Privacy & Security Guarantees
 
-EchoSelect TTS is designed to run **100% locally** in your browser:
+ReadFlow is designed to run **100% locally** in your browser:
 
 - **Zero telemetry and zero external network requests** under default settings (`WebSpeechEngine`).
 - Optional local HTTP TTS endpoints (`LocalHttpEngine`) are strictly restricted to loopback hosts (`localhost`, `127.0.0.1`, `[::1]`) to prevent accidental exfiltration of selected text to remote servers.

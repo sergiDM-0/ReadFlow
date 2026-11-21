@@ -1,11 +1,11 @@
 {
   "manifest_version": 3,
-  "name": "EchoSelect TTS",
+  "name": "ReadFlow",
   "version": "1.3.2",
   "description": "100% local, smooth neural text-to-speech (Piper WASM) with customizable dock icon, procedural streaming, and universal auto-read.",
   "browser_specific_settings": {
     "gecko": {
-      "id": "echoselect-tts@echoselect.local",
+      "id": "readflow@readflow.local",
       "strict_min_version": "109.0"
     }
   },
@@ -23,7 +23,7 @@
   },
   "action": {
     "default_area": "navbar",
-    "default_title": "EchoSelect TTS — Leer y configurar (Alt+S)",
+    "default_title": "ReadFlow — Leer y configurar (Alt+S)",
     "default_popup": "popup.html",
     "default_icon": {
       "16": "icons/icon-16.png",

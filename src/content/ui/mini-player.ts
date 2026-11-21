@@ -67,7 +67,7 @@ export class MiniPlayer {
     this.root.className = 'es-player';
     this.root.setAttribute('lang', 'es');
     this.root.setAttribute('role', 'region');
-    this.root.setAttribute('aria-label', 'EchoSelect TTS player');
+    this.root.setAttribute('aria-label', 'ReadFlow player');
     this.root.hidden = true;
 
     this.dragHandle = document.createElement('button');

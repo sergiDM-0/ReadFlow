@@ -14,11 +14,11 @@ describe('enableGoogleDocsCanvasAnnotations', () => {
     });
 
     try {
-      enableGoogleDocsCanvasAnnotations(document, 'echoselect-test-id');
+      enableGoogleDocsCanvasAnnotations(document, 'readflow-test-id');
       expect(
         (window as unknown as { _docs_annotate_canvas_by_ext?: string })
           ._docs_annotate_canvas_by_ext
-      ).toBe('echoselect-test-id');
+      ).toBe('readflow-test-id');
     } finally {
       Object.defineProperty(window, 'location', {
         configurable: true,
@@ -54,7 +54,7 @@ describe('SelectionHandler', () => {
 
   beforeEach(() => {
     document.body.textContent = '';
-    host = document.createElement('echo-select-ui');
+    host = document.createElement('readflow-ui');
     document.documentElement.appendChild(host);
   });
 

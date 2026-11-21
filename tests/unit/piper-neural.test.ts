@@ -151,7 +151,7 @@ describe('PiperNeuralEngine', () => {
 
     const origAudio = window.Audio;
     const revokeSpy = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
-    const createUrlSpy = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:echoselect-mock');
+    const createUrlSpy = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:readflow-mock');
 
     class FakeHtmlAudio {
       public preservesPitch = false;
@@ -209,7 +209,7 @@ describe('PiperNeuralEngine', () => {
 
       audio1.onended?.();
       await expect(p1).resolves.toBeUndefined();
-      expect(revokeSpy).toHaveBeenCalledWith('blob:echoselect-mock');
+      expect(revokeSpy).toHaveBeenCalledWith('blob:readflow-mock');
 
       // Second chunk at 2x reuses prefetched audio (transport called only 2 times total, not 3!)
       const p2 = engine.speak('Segunda frase', { lang: 'es', rate: 2 });

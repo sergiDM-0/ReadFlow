@@ -81,7 +81,7 @@ describe('service-worker entrypoint wiring', () => {
     // Trigger context menu click
     menuListeners.forEach((fn) =>
       fn(
-        { menuItemId: 'echoselect-read-selection', selectionText: 'Texto seleccionado' },
+        { menuItemId: 'readflow-read-selection', selectionText: 'Texto seleccionado' },
         { id: 99 }
       )
     );
@@ -112,7 +112,7 @@ describe('service-worker entrypoint wiring', () => {
     try {
       // Trigger context menu click without frameId
       menuListeners.forEach((fn) =>
-        fn({ menuItemId: 'echoselect-read-selection', selectionText: 'Sin frameId' }, { id: 105 })
+        fn({ menuItemId: 'readflow-read-selection', selectionText: 'Sin frameId' }, { id: 105 })
       );
       await new Promise((r) => setTimeout(r, 10));
 
@@ -120,7 +120,7 @@ describe('service-worker entrypoint wiring', () => {
       menuListeners.forEach((fn) =>
         fn(
           {
-            menuItemId: 'echoselect-read-selection',
+            menuItemId: 'readflow-read-selection',
             selectionText: 'Texto en PDF nativo',
             frameId: 0,
           } as { menuItemId: string; selectionText?: string },
@@ -198,7 +198,7 @@ describe('service-worker entrypoint wiring', () => {
     vi.mocked(browser.tabs.sendMessage).mockRejectedValueOnce(new Error('No receiving end'));
     menuListeners.forEach((fn) =>
       fn(
-        { menuItemId: 'echoselect-read-selection', selectionText: 'Texto en PDF Chrome' },
+        { menuItemId: 'readflow-read-selection', selectionText: 'Texto en PDF Chrome' },
         { id: 108 }
       )
     );

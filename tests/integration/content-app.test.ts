@@ -1,10 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import browser from 'webextension-polyfill';
-import { EchoSelectContentApp } from '../../src/content/app';
+import { ReadFlowContentApp } from '../../src/content/app';
 import { SETTINGS_STORAGE_KEY } from '../../src/shared/storage';
 import { DEFAULT_SETTINGS } from '../../src/shared/types';
 
-describe('EchoSelectContentApp integration', () => {
+describe('ReadFlowContentApp integration', () => {
   let messageListener: ((msg: unknown) => unknown) | null = null;
   let storageChangeListener: ((changes: Record<string, unknown>) => void) | null = null;
   let mockUtterances: Array<{ text: string; onend: (() => void) | null }> = [];
@@ -25,7 +25,7 @@ describe('EchoSelectContentApp integration', () => {
 
   beforeEach(() => {
     document.body.textContent = '';
-    document.querySelectorAll('echo-select-ui').forEach((el) => el.remove());
+    document.querySelectorAll('readflow-ui').forEach((el) => el.remove());
     mockUtterances = [];
     messageListener = null;
     storageChangeListener = null;
@@ -75,15 +75,15 @@ describe('EchoSelectContentApp integration', () => {
   });
 
   afterEach(() => {
-    document.querySelectorAll('echo-select-ui').forEach((el) => el.remove());
+    document.querySelectorAll('readflow-ui').forEach((el) => el.remove());
     vi.clearAllMocks();
   });
 
   it('mounts Shadow DOM, speaks on COMMAND_TOGGLE_READ, stops on COMMAND_STOP, and tears down when disabled', async () => {
-    const app = new EchoSelectContentApp();
+    const app = new ReadFlowContentApp();
     await app.start();
 
-    expect(document.querySelector('echo-select-ui')).not.toBeNull();
+    expect(document.querySelector('readflow-ui')).not.toBeNull();
     expect(messageListener).not.toBeNull();
 
     // Start reading via explicit command text
@@ -96,8 +96,8 @@ describe('EchoSelectContentApp integration', () => {
     expect(mockUtterances.length).toBeGreaterThanOrEqual(1);
     expect(mockUtterances[0]?.text).toBe('Primera frase.');
 
-    // Exercise mini-player buttons wired through EchoSelectContentApp
-    const shadow = document.querySelector('echo-select-ui')?.shadowRoot;
+    // Exercise mini-player buttons wired through ReadFlowContentApp
+    const shadow = document.querySelector('readflow-ui')?.shadowRoot;
     (shadow?.querySelector('[data-es-action="toggle"]') as HTMLButtonElement | null)?.click();
     (shadow?.querySelector('[data-es-action="toggle"]') as HTMLButtonElement | null)?.click();
     (shadow?.querySelector('[data-es-action="next"]') as HTMLButtonElement | null)?.click();
@@ -143,7 +143,7 @@ describe('EchoSelectContentApp integration', () => {
         newValue: { ...DEFAULT_SETTINGS, enabled: false },
       },
     });
-    expect(document.querySelector('echo-select-ui')).toBeNull();
+    expect(document.querySelector('readflow-ui')).toBeNull();
 
     // Toggle command when disabled returns inactive
     const disabledToggle = (await messageListener!({
@@ -158,17 +158,17 @@ describe('EchoSelectContentApp integration', () => {
         newValue: { ...DEFAULT_SETTINGS, enabled: true, theme: 'dark', engine: 'local-http' },
       },
     });
-    expect(document.querySelector('echo-select-ui')?.getAttribute('data-theme')).toBe('dark');
+    expect(document.querySelector('readflow-ui')?.getAttribute('data-theme')).toBe('dark');
 
     storageChangeListener?.({
       [SETTINGS_STORAGE_KEY]: {
         newValue: { ...DEFAULT_SETTINGS, enabled: true, theme: 'light', engine: 'web-speech' },
       },
     });
-    expect(document.querySelector('echo-select-ui')?.getAttribute('data-theme')).toBe('light');
+    expect(document.querySelector('readflow-ui')?.getAttribute('data-theme')).toBe('light');
 
     app.destroy();
-    expect(document.querySelector('echo-select-ui')).toBeNull();
+    expect(document.querySelector('readflow-ui')).toBeNull();
   });
 
   it('mounts Gemini auto-read toggle pill on gemini.google.com and toggles cleanly', async () => {
@@ -179,10 +179,10 @@ describe('EchoSelectContentApp integration', () => {
     });
 
     try {
-      const app = new EchoSelectContentApp();
+      const app = new ReadFlowContentApp();
       await app.start();
 
-      const shadow = document.querySelector('echo-select-ui')?.shadowRoot;
+      const shadow = document.querySelector('readflow-ui')?.shadowRoot;
       const pill = shadow?.querySelector(
         'button[data-es-role="gemini-autoread-toggle"]'
       ) as HTMLButtonElement | null;
@@ -209,10 +209,10 @@ describe('EchoSelectContentApp integration', () => {
   });
 
   it('auto-reads any selected text immediately when Auto-lectura is ON without duplicating icons', async () => {
-    const app = new EchoSelectContentApp();
+    const app = new ReadFlowContentApp();
     await app.start();
 
-    const shadow = document.querySelector('echo-select-ui')?.shadowRoot;
+    const shadow = document.querySelector('readflow-ui')?.shadowRoot;
     const pill = shadow?.querySelector(
       'button[data-es-role="gemini-autoread-toggle"]'
     ) as HTMLButtonElement | null;
@@ -247,7 +247,7 @@ describe('EchoSelectContentApp integration', () => {
     ) as HTMLButtonElement | null;
     expect(triggerBtn?.hidden).toBe(true);
 
-    // Minimize Auto-Read dock to orb and snap corner via keyboard (persists through EchoSelectContentApp)
+    // Minimize Auto-Read dock to orb and snap corner via keyboard (persists through ReadFlowContentApp)
     const collapseBtn = shadow?.querySelector(
       'button[data-es-role="autoread-collapse"]'
     ) as HTMLButtonElement | null;
@@ -275,7 +275,7 @@ describe('EchoSelectContentApp integration', () => {
       return { ok: false, code: 'SYNTHESIS_FAILED', message: 'Offline model unavailable' };
     });
 
-    const app = new EchoSelectContentApp();
+    const app = new ReadFlowContentApp();
     await app.start();
 
     await messageListener!({
@@ -329,7 +329,7 @@ describe('EchoSelectContentApp integration', () => {
       getRangeAt: () => range,
     } as unknown as Selection);
 
-    const app = new EchoSelectContentApp();
+    const app = new ReadFlowContentApp();
     await app.start();
 
     // 1. Initial selection triggers Auto-Read playback

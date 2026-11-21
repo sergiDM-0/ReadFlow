@@ -6,7 +6,7 @@ describe('background message handler', () => {
     const result = await handleRuntimeMessage(
       { type: 'DETECT_LANGUAGE', payload: { text: 'Hola mundo' } },
       { id: 'malicious-ext' },
-      { runtimeId: 'echoselect-test-id' }
+      { runtimeId: 'readflow-test-id' }
     );
     expect(result.ok).toBe(false);
     if (!result.ok) {
@@ -20,9 +20,9 @@ describe('background message handler', () => {
       languages: [{ language: 'es', percentage: 98 }],
     });
     const result = await handleRuntimeMessage(
-      { type: 'DETECT_LANGUAGE', payload: { text: 'Hola mundo desde EchoSelect' } },
-      { id: 'echoselect-test-id' },
-      { runtimeId: 'echoselect-test-id', detectLanguage }
+      { type: 'DETECT_LANGUAGE', payload: { text: 'Hola mundo desde ReadFlow' } },
+      { id: 'readflow-test-id' },
+      { runtimeId: 'readflow-test-id', detectLanguage }
     );
     expect(result).toEqual({
       ok: true,
@@ -42,8 +42,8 @@ describe('background message handler', () => {
           rate: 1,
         },
       },
-      { id: 'echoselect-test-id' },
-      { runtimeId: 'echoselect-test-id', fetchFn }
+      { id: 'readflow-test-id' },
+      { runtimeId: 'readflow-test-id', fetchFn }
     );
     expect(result.ok).toBe(false);
     if (!result.ok) {
@@ -71,8 +71,8 @@ describe('background message handler', () => {
           rate: 1.25,
         },
       },
-      { id: 'echoselect-test-id' },
-      { runtimeId: 'echoselect-test-id', fetchFn }
+      { id: 'readflow-test-id' },
+      { runtimeId: 'readflow-test-id', fetchFn }
     );
 
     expect(fetchFn).toHaveBeenCalledOnce();

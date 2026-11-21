@@ -11,7 +11,7 @@ import {
 import { SHADOW_UI_STYLES } from './styles';
 
 /**
- * Encapsulates EchoSelect's injected UI inside an isolated `<echo-select-ui>` Shadow DOM host,
+ * Encapsulates ReadFlow's injected UI inside an isolated `<readflow-ui>` Shadow DOM host,
  * removing orphaned hosts on extension reload and applying live theme and custom color variables.
  */
 export class ShadowHost {
@@ -20,7 +20,7 @@ export class ShadowHost {
   public readonly container: HTMLDivElement;
 
   public constructor(theme: ThemePreference = 'auto') {
-    this.hostElement = document.createElement('echo-select-ui');
+    this.hostElement = document.createElement('readflow-ui');
     this.setTheme(theme);
     this.shadowRoot = this.hostElement.attachShadow({ mode: 'open' });
     this.injectStyles();
@@ -32,7 +32,7 @@ export class ShadowHost {
 
   public mount(): void {
     // Clean up any orphaned host elements left behind by extension reloads (e.g. Firefox about:debugging).
-    document.querySelectorAll('echo-select-ui').forEach((existing) => {
+    document.querySelectorAll('readflow-ui').forEach((existing) => {
       if (existing !== this.hostElement) {
         existing.remove();
       }

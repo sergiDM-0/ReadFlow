@@ -114,7 +114,7 @@ function createEngineForSettings(settings: ExtensionSettings): TTSEngineInterfac
  * Main content-script orchestrator that coordinates `ShadowHost`, `FloatingButton`, `MiniPlayer`,
  * `AutoReadDock`, `SelectionHandler`, `GeminiAdapter`, `TTSManager`, and `ProceduralTextStream`.
  */
-export class EchoSelectContentApp {
+export class ReadFlowContentApp {
   private settings: ExtensionSettings = DEFAULT_SETTINGS;
   private host: ShadowHost | null = null;
   private floatingBtn: FloatingButton | null = null;

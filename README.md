@@ -1,4 +1,4 @@
-# EchoSelect TTS
+# ReadFlow
 
 > **Extensión de navegador 100 % local de síntesis de voz neuronal (Piper ONNX + WebAssembly) con streaming procedural incremental, auto-lectura universal acoplable a cualquier esquina y personalización de color en tiempo real.**
 
@@ -13,7 +13,7 @@
 
 ### 1. Motor neuronal suave 100 % local y arranque casi instantáneo
 
-- **Piper Neural TTS por defecto (`piper-neural`):** Ejecuta síntesis neuronal VITS en local mediante `onnxruntime-web` (SIMD) y `@diffusionstudio/piper-wasm` (`espeak-ng` compilado a WebAssembly con instancia persistente `noExitRuntime: true`). Incluye voces suaves curadas (`es_MX-claude-high` para español, `en_US-hfc_female-medium` para inglés y voces en ES/EN/PT/FR/DE/IT) que se descargan una sola vez en `Cache Storage` (`echoselect-piper-models-v1`) y luego funcionan **100 % offline**.
+- **Piper Neural TTS por defecto (`piper-neural`):** Ejecuta síntesis neuronal VITS en local mediante `onnxruntime-web` (SIMD) y `@diffusionstudio/piper-wasm` (`espeak-ng` compilado a WebAssembly con instancia persistente `noExitRuntime: true`). Incluye voces suaves curadas (`es_MX-claude-high` para español, `en_US-hfc_female-medium` para inglés y voces en ES/EN/PT/FR/DE/IT) que se descargan una sola vez en `Cache Storage` (`readflow-piper-models-v1`) y luego funcionan **100 % offline**.
 - **Streaming procedural incremental (`createProceduralTextStream`):** Procesa textos grandes bajo demanda en ventanas de ~640 caracteres con una **rampa de apertura rápida** (`48 → 95 → 140 → 175` caracteres) y pre-síntesis paralela de los próximos 2 fragmentos (_lookahead_), manteniendo el tiempo al primer audio en `O(1)` sin importar el tamaño del documento.
 - **Velocidad en vivo con tono humano natural (`0.75x` – `2x`):** Reproduce con `HTMLAudioElement` (`preservesPitch = true`) para que cambiar de velocidad en mitad de una frase sea instantáneo (`0 ms`), no altere el timbre de la voz y no invalide los fragmentos pre-sintetizados (con fallback automático a `AudioContext` persistente si el CSP de una página bloquea `blob:`).
 - **Motores intercambiables (`TTSEngineInterface`):** Cambia en cualquier momento entre **Piper Neuronal Local**, **Web Speech API** (con ranking de voces naturales y corrección de pausa/reanudación en Linux `speech-dispatcher`) o **Endpoint HTTP Local** (`http://127.0.0.1:5000/tts` / Kokoro OpenAI-compatible).
@@ -26,7 +26,7 @@
   3. La **píldora y la bolita de Auto-lectura**.
   4. El **Mini-reproductor flotante** y todos los controles del panel.
 - **Auto-lectura universal minimizable en línea de borde y acoplable a 4 esquinas (`AutoReadDock`):**
-  - Al activarla en **ON**, todo texto que selecciones en cualquier página, **Google Docs (canvas)**, **PDFs web o locales (`file:///*`)**, `<iframe>`, Shadow DOM o campos `<input>`/`<textarea>` se lee automáticamente (y en `gemini.google.com` lee además las respuestas nuevas en streaming). En visores PDF nativos restringidos del navegador, el menú contextual (**clic derecho → "EchoSelect: Leer selección"**) sintetiza y reproduce el audio directamente desde el documento Offscreen / background.
+  - Al activarla en **ON**, todo texto que selecciones en cualquier página, **Google Docs (canvas)**, **PDFs web o locales (`file:///*`)**, `<iframe>`, Shadow DOM o campos `<input>`/`<textarea>` se lee automáticamente (y en `gemini.google.com` lee además las respuestas nuevas en streaming). En visores PDF nativos restringidos del navegador, el menú contextual (**clic derecho → "ReadFlow: Leer selección"**) sintetiza y reproduce el audio directamente desde el documento Offscreen / background.
   - Pulsa **`−`** para esconderla en el borde de la pantalla dejando únicamente una **línea vertical discreta de `4×32 px` (`.es-edge-line`)** que indica dónde quedó guardada sin estorbar en vídeos ni lecturas; al pasar el puntero por encima o enfocarla con teclado, se desliza suavemente mostrando la **bolita interactiva de `36×36 px`** con LED `ON`/`OFF`, y vuelve a esconderse como línea al retirar el puntero.
   - Arrástrala a cualquier parte de la pantalla para que **se pegue magnéticamente a cualquiera de las 4 esquinas** (`top-left`, `top-right`, `bottom-left`, `bottom-right`), recordando su posición entre pestañas y desplazándose sola (`64 px`) si el Mini-reproductor ocupa la misma esquina.
 - **Mini-reproductor flotante arrastrable (`MiniPlayer`):** Arrastrable libremente con el ratón desde `⋮⋮` o con las flechas del teclado (`Inicio` restablece la esquina), con indicadores de progreso procedural (`1/4+`) y regiones ARIA live WCAG 2.2 AA.
@@ -47,13 +47,13 @@ npm run check:size
 
 1. Abre `chrome://extensions` (o el equivalente de tu navegador) y activa **Modo de desarrollador**.
 2. Pulsa **Cargar descomprimida** (_Load unpacked_) y selecciona la carpeta `dist/chrome`.
-3. **Anclar al dock:** Haz clic en el icono de extensiones **🧩** en la barra superior y pulsa la chincheta **📌 Fijar** junto a **EchoSelect TTS**. También puedes configurar colores y voces desde **Detalles → Opciones de la extensión**.
+3. **Anclar al dock:** Haz clic en el icono de extensiones **🧩** en la barra superior y pulsa la chincheta **📌 Fijar** junto a **ReadFlow**. También puedes configurar colores y voces desde **Detalles → Opciones de la extensión**.
 
 ### Firefox, Zen Browser, LibreWolf y Floorp (`dist/firefox`)
 
 1. Abre `about:debugging#/runtime/this-firefox`.
 2. Pulsa **Cargar complemento temporal...** y selecciona `dist/firefox/manifest.json`.
-3. **Anclaje automático y panel Administrar:** `manifest.firefox.json` define `"default_area": "navbar"`, fijando el icono directamente en la barra principal. Además, en `about:addons` → **EchoSelect TTS (Administrar)** → **Preferencias** tienes integrado el panel completo de colores, voces y configuración.
+3. **Anclaje automático y panel Administrar:** `manifest.firefox.json` define `"default_area": "navbar"`, fijando el icono directamente en la barra principal. Además, en `about:addons` → **ReadFlow (Administrar)** → **Preferencias** tienes integrado el panel completo de colores, voces y configuración.
 
 ---
 
@@ -92,13 +92,13 @@ src/
 │   └── offscreen.ts              # Listener de OFFSCREEN_PIPER_SYNTHESIZE / WARMUP / CANCEL sobre PiperRuntime
 ├── content/
 │   ├── index.ts                  # Punto de entrada IIFE del content script
-│   ├── app.ts                    # EchoSelectContentApp: coordina UI Shadow DOM, streaming procedural y motores
+│   ├── app.ts                    # ReadFlowContentApp: coordina UI Shadow DOM, streaming procedural y motores
 │   ├── selection-handler.ts      # SelectionHandler y clampFloatingPosition()
 │   ├── adapters/
 │   │   ├── gemini-selectors.ts   # GEMINI_SELECTORS: selectores DOM aislados para gemini.google.com
 │   │   └── gemini-adapter.ts     # GeminiAdapter: MutationObserver con deduplicación FNV-1a en streaming
 │   └── ui/
-│       ├── shadow-host.ts        # ShadowHost (<echo-select-ui>): limpieza de hosts huérfanos y variables CSS de color
+│       ├── shadow-host.ts        # ShadowHost (<readflow-ui>): limpieza de hosts huérfanos y variables CSS de color
 │       ├── floating-btn.ts       # FloatingButton: botón flotante de escuchar junto a la selección
 │       ├── mini-player.ts        # MiniPlayer: reproductor flotante arrastrable con reporte de layout anti-colisión
 │       ├── auto-read-dock.ts     # AutoReadDock y resolveNearestCorner(): píldora/bolita acoplable a 4 esquinas

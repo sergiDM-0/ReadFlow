@@ -4,7 +4,7 @@ import { ShadowHost } from '../../src/content/ui/shadow-host';
 
 describe('AutoReadDock (minimizable corner-snapping orb)', () => {
   afterEach(() => {
-    document.querySelectorAll('echo-select-ui').forEach((el) => el.remove());
+    document.querySelectorAll('readflow-ui').forEach((el) => el.remove());
   });
 
   it('resolves the nearest viewport corner accurately for all four quadrants', () => {

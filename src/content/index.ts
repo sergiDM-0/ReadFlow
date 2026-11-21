@@ -1,7 +1,7 @@
 import browser from 'webextension-polyfill';
-import { EchoSelectContentApp } from './app';
+import { ReadFlowContentApp } from './app';
 import { enableGoogleDocsCanvasAnnotations } from './selection-handler';
 
-enableGoogleDocsCanvasAnnotations(document, browser.runtime?.id || 'echoselect-tts');
-const app = new EchoSelectContentApp();
+enableGoogleDocsCanvasAnnotations(document, browser.runtime?.id || 'readflow-tts');
+const app = new ReadFlowContentApp();
 void app.start();

@@ -9,7 +9,7 @@ import { getExtensionStorage, onSettingsChanged } from '../shared/storage';
 import type { ExtensionMessage, ExtensionSettings, MessageResult } from '../shared/types';
 import { handleRuntimeMessage } from './message-handler';
 
-const CONTEXT_MENU_ID = 'echoselect-read-selection';
+const CONTEXT_MENU_ID = 'readflow-read-selection';
 
 interface ChromeOffscreenApi {
   hasDocument?: () => Promise<boolean>;
@@ -164,10 +164,10 @@ function applyToolbarIconAndBadge(settings: ExtensionSettings): void {
 
   if (typeof actionApi.setTitle === 'function') {
     const title = !settings.enabled
-      ? 'EchoSelect TTS (Desactivado)'
+      ? 'ReadFlow (Desactivado)'
       : autoReadActive
-        ? 'EchoSelect TTS (Auto-lectura ON — clic para configurar)'
-        : 'EchoSelect TTS — Leer y configurar (Alt+S)';
+        ? 'ReadFlow (Auto-lectura ON — clic para configurar)'
+        : 'ReadFlow — Leer y configurar (Alt+S)';
     void actionApi.setTitle({ title }).catch(() => undefined);
   }
 }
@@ -209,7 +209,7 @@ function registerContextMenu(): void {
     .then(() => {
       browser.contextMenus.create({
         id: CONTEXT_MENU_ID,
-        title: 'EchoSelect: Leer selección',
+        title: 'ReadFlow: Leer selección',
         contexts: ['selection'],
       });
     })

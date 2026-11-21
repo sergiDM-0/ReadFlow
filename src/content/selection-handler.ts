@@ -47,7 +47,7 @@ const GOOGLE_DOCS_IFRAME_SELECTOR = 'iframe.docs-texteventtarget-iframe';
  */
 export function enableGoogleDocsCanvasAnnotations(
   targetDoc: Document = document,
-  extensionId = 'echoselect-tts'
+  extensionId = 'readflow-tts'
 ): void {
   if (window.location.hostname !== 'docs.google.com') {
     return;
@@ -216,7 +216,7 @@ function findOwningIframe(target: EventTarget | null): HTMLIFrameElement | null 
 /**
  * Observes mouse and keyboard text selections across standard DOM pages, Shadow DOMs,
  * `<input>`/`<textarea>` form controls, PDF.js / embedded PDF text layers, and Google Docs
- * canvas / `.docs-texteventtarget-iframe` editors while ignoring events inside EchoSelect's UI.
+ * canvas / `.docs-texteventtarget-iframe` editors while ignoring events inside ReadFlow's UI.
  */
 export class SelectionHandler {
   private readonly options: SelectionHandlerOptions;

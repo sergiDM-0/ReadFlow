@@ -41,7 +41,7 @@ await build({
     target: 'es2022',
     lib: {
       entry: path.resolve(rootDir, 'src/content/index.ts'),
-      name: 'EchoSelectContent',
+      name: 'ReadFlowContent',
       formats: ['iife'],
       fileName: () => 'content.js',
     },
@@ -188,4 +188,4 @@ for (const file of fs.readdirSync(iconsSrc)) {
   }
 }
 
-console.log(`Built EchoSelect TTS (${target}) -> ${path.relative(rootDir, outDir)}`);
+console.log(`Built ReadFlow (${target}) -> ${path.relative(rootDir, outDir)}`);

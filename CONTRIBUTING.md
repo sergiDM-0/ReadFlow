@@ -1,6 +1,6 @@
-# Contributing to EchoSelect TTS
+# Contributing to ReadFlow
 
-¡Gracias por contribuir a **EchoSelect TTS**! Este documento refleja los scripts reales de [`package.json`](./package.json) y la estructura actual de [`src/`](./src).
+¡Gracias por contribuir a **ReadFlow**! Este documento refleja los scripts reales de [`package.json`](./package.json) y la estructura actual de [`src/`](./src).
 
 ## 1. Requisitos e instalación
 

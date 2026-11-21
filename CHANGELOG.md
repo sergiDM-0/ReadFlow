@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to **EchoSelect TTS** will be documented in this file.
+All notable changes to **ReadFlow** will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
@@ -40,8 +40,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **Customizable Dock / Toolbar Icon & Live Color Theming**:
-  - New `icon-renderer.ts` renders the EchoSelect brand icon dynamically via `OffscreenCanvas` (`browser.action.setIcon`) and inline SVG (`createBrandIconSvg`), syncing custom icon background, symbol foreground, UI accent color, theme (`auto` / `light` / `dark`), and `ON`/`OFF` toolbar badge in real time across Chrome, Brave, Edge, Opera, Vivaldi, Firefox, Zen, LibreWolf, and Floorp.
-  - Added `"default_area": "navbar"` in `manifest.firefox.json` so Firefox and Gecko variants pin EchoSelect directly to the main toolbar/dock on install.
+  - New `icon-renderer.ts` renders the ReadFlow brand icon dynamically via `OffscreenCanvas` (`browser.action.setIcon`) and inline SVG (`createBrandIconSvg`), syncing custom icon background, symbol foreground, UI accent color, theme (`auto` / `light` / `dark`), and `ON`/`OFF` toolbar badge in real time across Chrome, Brave, Edge, Opera, Vivaldi, Firefox, Zen, LibreWolf, and Floorp.
+  - Added `"default_area": "navbar"` in `manifest.firefox.json` so Firefox and Gecko variants pin ReadFlow directly to the main toolbar/dock on install.
 - **Redesigned Reverso-Style Dock Panel (`popup.html` / `popup.css` / `popup-controller.ts`)**:
   - Header with live dynamic SVG icon, active domain subtitle, and pill global enable switch.
   - Quick-read box to speak pasted/typed text or the active tab's selection directly from the dock panel (`▶ Leer ahora` / `⏹ Detener`).
@@ -61,7 +61,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Fixed duplicated Auto-Read icon glitch by replacing OS-dependent emojis with a single inline SVG icon + ON/OFF badge and cleaning up orphaned `<echo-select-ui>` Shadow DOM hosts on extension reload.
+- Fixed duplicated Auto-Read icon glitch by replacing OS-dependent emojis with a single inline SVG icon + ON/OFF badge and cleaning up orphaned `<readflow-ui>` Shadow DOM hosts on extension reload.
 
 ## [1.1.1] - 2026-11-19
 

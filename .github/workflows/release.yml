@@ -28,9 +28,9 @@ jobs:
           TAG: ${{ github.ref_name }}
         run: |
           mkdir -p release-artifacts
-          (cd dist/chrome && zip -r "../../release-artifacts/echo-select-tts-chrome-${TAG}.zip" .)
-          (cd dist/firefox && zip -r "../../release-artifacts/echo-select-tts-firefox-${TAG}.zip" .)
-          git archive --format=tar.gz -o "release-artifacts/echo-select-tts-source-${TAG}.tar.gz" HEAD
+          (cd dist/chrome && zip -r "../../release-artifacts/readflow-chrome-${TAG}.zip" .)
+          (cd dist/firefox && zip -r "../../release-artifacts/readflow-firefox-${TAG}.zip" .)
+          git archive --format=tar.gz -o "release-artifacts/readflow-source-${TAG}.tar.gz" HEAD
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:

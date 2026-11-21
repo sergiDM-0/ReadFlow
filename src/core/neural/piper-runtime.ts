@@ -36,7 +36,7 @@ export interface PiperSynthesizeResult {
   readonly audioBase64: string;
 }
 
-const CACHE_NAME = 'echoselect-piper-models-v1';
+const CACHE_NAME = 'readflow-piper-models-v1';
 const MAX_AUDIO_CACHE_ENTRIES = 24;
 // Fixed brisk natural cadence (~10% livelier) so voice timbre stays 100% consistent across speed changes.
 const BASE_CADENCE_SCALE = 0.9;

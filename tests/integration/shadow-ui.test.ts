@@ -5,18 +5,18 @@ import { MiniPlayer } from '../../src/content/ui/mini-player';
 
 describe('Shadow DOM UI lifecycle', () => {
   afterEach(() => {
-    document.querySelectorAll('echo-select-ui').forEach((el) => el.remove());
+    document.querySelectorAll('readflow-ui').forEach((el) => el.remove());
   });
 
   it('mounts cleanly in ShadowRoot, removes orphaned hosts on reload, and leaves zero DOM nodes after destroy', () => {
-    const staleHost = document.createElement('echo-select-ui');
+    const staleHost = document.createElement('readflow-ui');
     document.documentElement.appendChild(staleHost);
 
     const host = new ShadowHost('auto');
     host.setAppearance({ iconBgColor: '#059669', iconFgColor: '#ffffff', accentColor: '#047857' });
     host.mount();
 
-    const hostEls = document.querySelectorAll('echo-select-ui');
+    const hostEls = document.querySelectorAll('readflow-ui');
     expect(hostEls).toHaveLength(1);
     expect(hostEls[0]).toBe(host.hostElement);
     expect(hostEls[0]?.shadowRoot).not.toBeNull();
@@ -25,7 +25,7 @@ describe('Shadow DOM UI lifecycle', () => {
     expect(host.hostElement.style.getPropertyValue('--es-icon-fg')).toBe('#ffffff');
 
     host.destroy();
-    expect(document.querySelector('echo-select-ui')).toBeNull();
+    expect(document.querySelector('readflow-ui')).toBeNull();
   });
 
   it('renders FloatingButton with accessible attributes and triggers onClick', () => {

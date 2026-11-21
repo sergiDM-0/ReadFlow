@@ -1,6 +1,6 @@
 ---
 name: Bug report
-about: Report a bug in EchoSelect TTS
+about: Report a bug in ReadFlow
 labels: bug
 ---
 

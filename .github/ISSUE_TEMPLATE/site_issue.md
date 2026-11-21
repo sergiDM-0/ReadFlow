@@ -1,6 +1,6 @@
 ---
 name: Site compatibility issue
-about: Report a website or AI chat where EchoSelect TTS fails
+about: Report a website or AI chat where ReadFlow fails
 labels: site-compatibility
 ---
 

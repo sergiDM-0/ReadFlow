@@ -85,7 +85,7 @@ export function getContrastingForeground(bgHex: string): '#ffffff' | '#0f172a' {
 }
 
 /**
- * Builds an inline `<svg>` EchoSelect brand icon using safe DOM APIs (`createElementNS`).
+ * Builds an inline `<svg>` ReadFlow brand icon using safe DOM APIs (`createElementNS`).
  * @param appearance Custom icon and accent colors.
  * @param size Pixel width and height of the SVG element.
  * @param autoReadActive Whether to render the green Auto-Read status dot.
@@ -222,7 +222,7 @@ function createCanvasContext(size: number): DrawableCtx | null {
 }
 
 /**
- * Rasterizes the customizable EchoSelect dock/toolbar icon to `ImageData` for `browser.action.setIcon`.
+ * Rasterizes the customizable ReadFlow dock/toolbar icon to `ImageData` for `browser.action.setIcon`.
  * Uses `OffscreenCanvas` in MV3 Service Workers and falls back to `<canvas>` in DOM contexts.
  * @param appearance Custom icon and accent colors.
  * @param size Target icon dimension in pixels (`16`, `32`, `48`).

@@ -9,7 +9,7 @@ import {
   type PlaybackRate,
 } from './types';
 
-export const SETTINGS_STORAGE_KEY = 'echoselect_settings_v1';
+export const SETTINGS_STORAGE_KEY = 'readflow_settings_v1';
 const SAFE_HEX_COLOR_RE = /^#[0-9a-f]{6}$/i;
 const VALID_DOCK_CORNERS: readonly DockCorner[] = [
   'top-left',

@@ -6,7 +6,7 @@ import { test, expect, chromium, type BrowserContext } from '@playwright/test';
 const EXTENSION_PATH = path.resolve(process.cwd(), 'dist/chrome');
 const FIXTURE_PATH = path.resolve(process.cwd(), 'tests/e2e/fixtures/test-page.html');
 
-test.describe('EchoSelect TTS Chrome Extension E2E', () => {
+test.describe('ReadFlow Chrome Extension E2E', () => {
   let server: http.Server;
   let baseUrl: string;
   let context: BrowserContext;
@@ -85,7 +85,7 @@ test.describe('EchoSelect TTS Chrome Extension E2E', () => {
 
     await triggerBtn.click();
 
-    const playerRegion = page.locator('[role="region"][aria-label="EchoSelect TTS player"]');
+    const playerRegion = page.locator('[role="region"][aria-label="ReadFlow player"]');
     await expect(playerRegion).toBeVisible();
 
     await page.locator('[data-es-action="stop"]').click();
