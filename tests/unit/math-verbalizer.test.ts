@@ -53,7 +53,19 @@ describe('verbalizeMathAndQuantities', () => {
     expect(verbalizeMathAndQuantities('Pulsa Ctrl+C para copiar.', 'es')).toBe(
       'Pulsa Ctrl+C para copiar.'
     );
-    expect(verbalizeMathAndQuantities('50% et 2 kg', 'fr')).toBe('50% et 2 kg');
+    expect(verbalizeMathAndQuantities('50% et 2 kg', 'ja')).toBe('50% et 2 kg');
+    expect(verbalizeMathAndQuantities('2 + 3 = 5 at 50% e 2 kg', 'pt-BR')).toBe(
+      '2 mais 3 igual a 5 at 50 por cento e 2 quilogramas'
+    );
+    expect(verbalizeMathAndQuantities('2 + 3 = 5 et 50% et 2 kg', 'fr-FR')).toBe(
+      '2 plus 3 égal à 5 et 50 pour cent et 2 kilogrammes'
+    );
+    expect(verbalizeMathAndQuantities('2 + 3 = 5 und 50% und 2 kg', 'de-DE')).toBe(
+      '2 plus 3 gleich 5 und 50 Prozent und 2 Kilogramm'
+    );
+    expect(verbalizeMathAndQuantities('2 + 3 = 5 e 50% e 2 kg', 'it-IT')).toBe(
+      '2 più 3 uguale a 5 e 50 per cento e 2 chilogrammi'
+    );
     expect(verbalizeMathAndQuantities('Hex 0x1e5 y https://example.com/1/2?x=3', 'es')).toBe(
       'Hex 0x1e5 y https://example.com/1/2?x=3'
     );

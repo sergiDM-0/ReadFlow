@@ -52,12 +52,18 @@ const EXCLUDED_ATTACHMENT_TAGS = new Set([
 const ATTACHMENT_ATTR_RE =
   /(?:^|[\s_-])(?:(?:file|image|img|attachment|upload|media|query-file)[_-]?(?:preview|chip|card|name|badge|pill|thumbnail|container|wrapper)|uploaded-file|file-attachment)(?:$|[\s_-])/i;
 
+const CODE_PLACEHOLDERS: Readonly<Record<string, string>> = {
+  es: 'bloque de código omitido.',
+  en: 'code block omitted.',
+  pt: 'bloco de código omitido.',
+  fr: 'bloc de code omis.',
+  de: 'Codeblock ausgelassen.',
+  it: 'blocco di codice omesso.',
+};
+
 function getCodePlaceholder(lang?: string): string {
-  const normalized = (lang ?? '').toLowerCase();
-  if (normalized.startsWith('es')) {
-    return 'bloque de código omitido.';
-  }
-  return 'code block omitted.';
+  const prefix = (lang ?? 'en').trim().toLowerCase().split(/[-_]/)[0] ?? 'en';
+  return CODE_PLACEHOLDERS[prefix] ?? 'code block omitted.';
 }
 
 /**

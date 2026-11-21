@@ -154,8 +154,8 @@ describe('popup controller', () => {
     });
 
     expect(document.querySelector('#current-domain')?.textContent).toBe('news.example.com');
-    expect(document.querySelector('#brand-icon-slot svg')).not.toBeNull();
-    expect(document.querySelector('#preview-dock-icon svg')).not.toBeNull();
+    expect(document.querySelector('#brand-icon-slot img')).not.toBeNull();
+    expect(document.querySelector('#preview-dock-icon img')).not.toBeNull();
 
     // Quick-read box (Reverso style) reads explicit text and stops active tab playback
     const quickInput = document.querySelector('#quick-read-input') as HTMLTextAreaElement;
