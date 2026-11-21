@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ReadFlow — Lectura en voz alta 100 % local con IA neuronal</title>
+    <meta
+      name="description"
+      content="Extensión de navegador 100 % local de lectura en voz alta con IA neuronal (Piper WASM), sin telemetría ni servidores externos. Disponible para Chrome y Firefox."
+    />
+    <link rel="icon" type="image/png" href="assets/icon-128.png" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container header-inner">
+        <a class="brand" href="#top" aria-label="ReadFlow inicio">
+          <img src="assets/icon-128.png" alt="ReadFlow" width="36" height="36" />
+          <span>ReadFlow</span>
+        </a>
+        <nav class="nav-links" aria-label="Navegación principal">
+          <a href="#features">Características</a>
+          <a href="#languages">Idiomas</a>
+          <a href="#install">Instalación</a>
+          <a href="https://github.com/sergiDM-0/ReadFlow/blob/main/PRIVACY.md" target="_blank" rel="noopener">Privacidad</a>
+          <a class="btn btn-sm" href="https://github.com/sergiDM-0/ReadFlow" target="_blank" rel="noopener">GitHub</a>
+        </nav>
+      </div>
+    </header>
+
+    <main id="top">
+      <section class="hero">
+        <div class="container hero-grid">
+          <div class="hero-copy">
+            <span class="badge">100 % Local • Piper ONNX + WebAssembly • Cero Telemetría</span>
+            <h1>Escucha cualquier texto, PDF o Google Doc con voz neuronal natural</h1>
+            <p class="lead">
+              ReadFlow sintetiza voz humana directamente en tu navegador sin enviar una sola palabra a servidores
+              externos. Arranque instantáneo, auto-lectura acoplable en 4 esquinas y detección automática en 6
+              idiomas.
+            </p>
+            <div class="cta-row">
+              <a class="btn btn-primary" href="#install">Instalar extensión</a>
+              <a class="btn btn-secondary" href="https://github.com/sergiDM-0/ReadFlow" target="_blank" rel="noopener">
+                Ver código en GitHub
+              </a>
+            </div>
+            <ul class="trust-pills" aria-label="Garantías principales">
+              <li>Sin cuentas ni API keys</li>
+              <li>Funciona offline tras cachear la voz</li>
+              <li>Chrome, Brave, Edge, Firefox y Zen</li>
+            </ul>
+          </div>
+          <div class="hero-visual">
+            <div class="logo-card">
+              <img
+                src="assets/logo-name.jpeg"
+                alt="Logotipo oficial de ReadFlow"
+                class="hero-logo"
+                width="360"
+              />
+              <div class="mini-preview">
+                <span class="dot-live" aria-hidden="true"></span>
+                <span>Piper Neural WASM listo • 0 ms fuera del navegador</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="features" class="section">
+        <div class="container">
+          <h2>Diseñada para leer rápido sin estorbar</h2>
+          <p class="section-sub">
+            Cada detalle está optimizado para documentos largos, artículos técnicos, PDFs y respuestas en streaming.
+          </p>
+          <div class="cards-grid">
+            <article class="card">
+              <h3>Motor neuronal local (Piper WASM)</h3>
+              <p>
+                Ejecuta modelos VITS en WebAssembly con <code>onnxruntime-web</code> y caché LRU en memoria para
+                alternar entre voces e idiomas al instante.
+              </p>
+            </article>
+            <article class="card">
+              <h3>Streaming procedural O(1)</h3>
+              <p>
+                Fragmenta textos largos bajo demanda con rampa rápida de apertura (48 → 175 caracteres) y
+                pre-síntesis paralela de los siguientes fragmentos.
+              </p>
+            </article>
+            <article class="card">
+              <h3>Auto-lectura acoplable en 4 esquinas</h3>
+              <p>
+                Minimízala a una discreta línea lateral de <code>4×32 px</code> o arrástrala a cualquier esquina sin
+                tapar vídeos ni documentos.
+              </p>
+            </article>
+            <article class="card">
+              <h3>Verbalización matemática inteligente</h3>
+              <p>
+                Pronuncia comparaciones, raíces, potencias, fracciones, notación científica, monedas y unidades en los
+                6 idiomas soportados.
+              </p>
+            </article>
+            <article class="card">
+              <h3>Google Docs, PDFs y Gemini</h3>
+              <p>
+                Soporta selección en canvas de Google Docs, lectores PDF nativos vía menú contextual, Shadow DOM,
+                iframes y streaming en Gemini.
+              </p>
+            </article>
+            <article class="card">
+              <h3>Velocidad natural y tema en vivo</h3>
+              <p>
+                Ajusta la velocidad de <code>0.75x</code> a <code>2.0x</code> conservando el timbre humano natural y
+                personaliza el color de la interfaz al instante.
+              </p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section id="languages" class="section section-alt">
+        <div class="container">
+          <h2>6 idiomas con detección automática</h2>
+          <p class="section-sub">
+            Detección local instantánea y voces neuronales dedicadas para cada idioma:
+          </p>
+          <div class="lang-grid">
+            <div class="lang-chip"><strong>Español</strong><span>es-MX, es-ES (4 voces)</span></div>
+            <div class="lang-chip"><strong>Inglés</strong><span>en-US, en-GB (4 voces)</span></div>
+            <div class="lang-chip"><strong>Portugués</strong><span>pt-BR</span></div>
+            <div class="lang-chip"><strong>Francés</strong><span>fr-FR</span></div>
+            <div class="lang-chip"><strong>Alemán</strong><span>de-DE</span></div>
+            <div class="lang-chip"><strong>Italiano</strong><span>it-IT</span></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="install" class="section">
+        <div class="container">
+          <h2>Instalación desde código fuente</h2>
+          <div class="install-grid">
+            <article class="card">
+              <h3>Chrome, Brave, Edge, Opera y Vivaldi</h3>
+              <ol>
+                <li>Clona el repositorio y ejecuta <code>npm install && npm run build</code>.</li>
+                <li>Abre <code>chrome://extensions</code> y activa <strong>Modo de desarrollador</strong>.</li>
+                <li>Pulsa <strong>Cargar descomprimida</strong> y selecciona <code>dist/chrome</code>.</li>
+              </ol>
+            </article>
+            <article class="card">
+              <h3>Firefox, Zen Browser, LibreWolf y Floorp</h3>
+              <ol>
+                <li>Ejecuta <code>npm install && npm run build</code>.</li>
+                <li>Abre <code>about:debugging#/runtime/this-firefox</code>.</li>
+                <li>Pulsa <strong>Cargar complemento temporal...</strong> y elige <code>dist/firefox/manifest.json</code>.</li>
+              </ol>
+            </article>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-inner">
+        <p>ReadFlow • Licencia MIT • 100 % local y código abierto</p>
+        <div class="footer-links">
+          <a href="https://github.com/sergiDM-0/ReadFlow/blob/main/PRIVACY.md" target="_blank" rel="noopener">
+            Política de Privacidad
+          </a>
+          <a href="https://github.com/sergiDM-0/ReadFlow/blob/main/SECURITY.md" target="_blank" rel="noopener">
+            Seguridad
+          </a>
+          <a href="https://github.com/sergiDM-0/ReadFlow" target="_blank" rel="noopener">Repositorio</a>
+        </div>
+      </div>
+    </footer>
+  </body>
+</html>
