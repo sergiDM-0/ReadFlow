@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **6-Language Math Verbalization & Code Placeholder Localization (`math-verbalizer.ts`, `cleaner.ts`)**:
   - Extended `verbalizeMathAndQuantities()` and `cleanText()` code-block placeholders beyond `es`/`en` to cover all 6 supported languages: Portuguese (`pt-BR`), French (`fr-FR`), German (`de-DE`), and Italian (`it-IT`).
+- **GitHub Pages Homepage & Manifest Identity (`site/`, `pages.yml`, `manifest.*.json`)**:
+  - Added static ReadFlow landing page (`site/index.html`, `site/styles.css`), automated GitHub Pages deployment workflow (`.github/workflows/pages.yml`), and `author` / `homepage_url` (`https://sergidm-0.github.io/ReadFlow/`) metadata in `manifest.chrome.json` and `manifest.firefox.json`.
 - **Store & Governance Readiness (`PRIVACY.md`, `manifest.firefox.json`, `.github/`)**:
   - Added public Privacy Policy (`PRIVACY.md`) linked from `README.md` and declared `"data_collection_permissions": { "required": ["none"] }` in `manifest.firefox.json`.
   - Added `.github/CODEOWNERS`, `.github/ISSUE_TEMPLATE/config.yml`, and Prettier `format:check` + least-privilege `permissions` to `.github/workflows/ci.yml`.
