@@ -9,7 +9,7 @@
 
 ```bash
 git clone <repo-url>
-cd Text_to_Speech
+cd ReadFlow
 npm install
 npm test
 npm run build

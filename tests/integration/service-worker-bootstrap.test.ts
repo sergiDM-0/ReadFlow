@@ -80,10 +80,7 @@ describe('service-worker entrypoint wiring', () => {
 
     // Trigger context menu click
     menuListeners.forEach((fn) =>
-      fn(
-        { menuItemId: 'readflow-read-selection', selectionText: 'Texto seleccionado' },
-        { id: 99 }
-      )
+      fn({ menuItemId: 'readflow-read-selection', selectionText: 'Texto seleccionado' }, { id: 99 })
     );
     await new Promise((r) => setTimeout(r, 0));
     expect(browser.tabs.sendMessage).toHaveBeenCalledWith(99, {

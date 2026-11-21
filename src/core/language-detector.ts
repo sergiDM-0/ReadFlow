@@ -49,7 +49,20 @@ const LANGUAGE_STOPWORDS: Readonly<Record<string, readonly string[]>> = {
   pt: ['que', 'não', 'para', 'com', 'uma', 'você', 'isso', 'texto', 'como'],
   fr: ['les', 'des', 'une', 'pour', 'dans', 'avec', 'cette', 'vous', 'est'],
   de: ['der', 'die', 'das', 'und', 'für', 'mit', 'nicht', 'eine', 'ist'],
-  it: ['che', 'non', 'per', 'con', 'una', 'sono', 'questo', 'questa', 'della', 'anche', 'testo', 'come'],
+  it: [
+    'che',
+    'non',
+    'per',
+    'con',
+    'una',
+    'sono',
+    'questo',
+    'questa',
+    'della',
+    'anche',
+    'testo',
+    'come',
+  ],
 };
 
 const WORD_TO_LANGS: ReadonlyMap<string, readonly string[]> = (() => {
