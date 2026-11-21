@@ -111,9 +111,18 @@ describe('PiperRuntime', () => {
     expect(repeated.audioBase64).toBe(first.audioBase64);
     expect(runMock).toHaveBeenCalledTimes(2);
 
-    // Switching voice loads new session and releases previous one, still reusing phonemizer WASM
+    // Switching between two voices keeps both sessions warm in the 2-slot LRU cache
     await runtime.synthesize('Tercera frase', 'es_ES-sharvard-medium');
     expect(createSessionMock).toHaveBeenCalledTimes(2);
+    expect(releaseMock).toHaveBeenCalledTimes(0);
+
+    // Switching back to the first voice is instant (0 new session creations)
+    await runtime.synthesize('Cuarta frase', 'es_MX-claude-high');
+    expect(createSessionMock).toHaveBeenCalledTimes(2);
+
+    // Loading a third distinct voice evicts and releases the least-recently-used session
+    await runtime.synthesize('Fifth phrase', 'en_US-hfc_female-medium');
+    expect(createSessionMock).toHaveBeenCalledTimes(3);
     expect(releaseMock).toHaveBeenCalledTimes(1);
     expect(phonemizeFactoryMock).toHaveBeenCalledTimes(1);
   });

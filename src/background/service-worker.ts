@@ -4,7 +4,6 @@ import { detectLanguageHeuristic } from '../core/language-detector';
 import { PiperRuntime } from '../core/neural/piper-runtime';
 import { resolvePiperVoiceForLang } from '../core/neural/piper-voices';
 import { createProceduralTextStream } from '../core/procedural-stream';
-import { renderToolbarIconImageData } from '../shared/icon-renderer';
 import { getExtensionStorage, onSettingsChanged } from '../shared/storage';
 import type { ExtensionMessage, ExtensionSettings, MessageResult } from '../shared/types';
 import { handleRuntimeMessage } from './message-handler';

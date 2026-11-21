@@ -26,6 +26,9 @@ describe('language-detector', () => {
     expect(
       detectLanguageHeuristic('Diese Erweiterung ist eine Lösung für dich und das Team.')
     ).toBe('de');
+    expect(
+      detectLanguageHeuristic('Questa estensione legge il testo selezionato con una voce naturale.')
+    ).toBe('it');
   });
 
   it('prefers remote detector result when reliable', async () => {

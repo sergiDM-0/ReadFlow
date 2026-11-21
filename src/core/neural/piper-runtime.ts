@@ -38,10 +38,31 @@ export interface PiperSynthesizeResult {
 
 const CACHE_NAME = 'readflow-piper-models-v1';
 const MAX_AUDIO_CACHE_ENTRIES = 24;
+const MAX_CACHED_SESSIONS = 2;
 // Fixed brisk natural cadence (~10% livelier) so voice timbre stays 100% consistent across speed changes.
 const BASE_CADENCE_SCALE = 0.9;
 const MIN_LENGTH_SCALE = 0.65;
 const MAX_LENGTH_SCALE = 1.35;
+
+interface CachedVoiceSession {
+  readonly session: ort.InferenceSession;
+  readonly modelConfig: PiperModelConfig;
+}
+
+let modelCachePromise: Promise<Cache | null> | null = null;
+
+function getModelCache(): Promise<Cache | null> {
+  if (typeof caches === 'undefined') {
+    return Promise.resolve(null);
+  }
+  if (!modelCachePromise) {
+    modelCachePromise = caches.open(CACHE_NAME).catch(() => {
+      modelCachePromise = null;
+      return null;
+    });
+  }
+  return modelCachePromise;
+}
 
 function resolveOptimalWasmThreads(): number {
   const g = globalThis as unknown as {
@@ -56,9 +77,9 @@ function resolveOptimalWasmThreads(): number {
 }
 
 async function fetchCachedBytes(url: string): Promise<ArrayBuffer> {
-  if (typeof caches !== 'undefined') {
-    try {
-      const cache = await caches.open(CACHE_NAME);
+  try {
+    const cache = await getModelCache();
+    if (cache) {
       const cached = await cache.match(url);
       if (cached) {
         return await cached.arrayBuffer();
@@ -69,9 +90,9 @@ async function fetchCachedBytes(url: string): Promise<ArrayBuffer> {
       }
       await cache.put(url, response.clone());
       return await response.arrayBuffer();
-    } catch {
-      // Fall through to direct fetch if Cache Storage is unavailable in private windows.
     }
+  } catch {
+    // Fall through to direct fetch if Cache Storage is unavailable in private windows.
   }
 
   const response = await fetch(url, { credentials: 'omit' });
@@ -88,9 +109,7 @@ async function fetchCachedBytes(url: string): Promise<ArrayBuffer> {
  */
 export class PiperRuntime {
   private readonly wasmPaths: PiperWasmPaths;
-  private loadedVoiceId: string | null = null;
-  private modelConfig: PiperModelConfig | null = null;
-  private session: ort.InferenceSession | null = null;
+  private readonly sessionCache = new Map<string, CachedVoiceSession>();
   private phonemizer: PiperPhonemizeModule | null = null;
   private phonemizerInitPromise: Promise<PiperPhonemizeModule> | null = null;
   private activePrintHandler: ((line: string) => void) | null = null;
@@ -112,7 +131,7 @@ export class PiperRuntime {
 
   /** Pre-loads and compiles the phonemizer WASM and ONNX model for `voiceId` in parallel. */
   public warmup(voiceId: string): Promise<void> {
-    if (this.loadedVoiceId === voiceId && this.session && this.modelConfig && this.phonemizer) {
+    if (this.sessionCache.has(voiceId) && this.phonemizer) {
       return Promise.resolve();
     }
     if (this.warmupPromise && this.warmupTargetVoiceId === voiceId) {
@@ -120,7 +139,7 @@ export class PiperRuntime {
     }
 
     this.warmupTargetVoiceId = voiceId;
-    const task = this.queue.then(() => this.ensureVoiceLoaded(voiceId));
+    const task = this.queue.then(() => this.ensureVoiceLoaded(voiceId).then(() => undefined));
     this.queue = task.catch(() => undefined);
     this.warmupPromise = task.finally(() => {
       if (this.warmupPromise === task) {
@@ -209,10 +228,14 @@ export class PiperRuntime {
     return this.phonemizerInitPromise;
   }
 
-  private async ensureVoiceLoaded(voiceId: string): Promise<void> {
-    if (this.loadedVoiceId === voiceId && this.session && this.modelConfig) {
+  private async ensureVoiceLoaded(voiceId: string): Promise<CachedVoiceSession> {
+    const cached = this.sessionCache.get(voiceId);
+    if (cached) {
+      // Refresh LRU position so frequently used bilingual voices remain hot in memory.
+      this.sessionCache.delete(voiceId);
+      this.sessionCache.set(voiceId, cached);
       await this.ensurePhonemizerLoaded();
-      return;
+      return cached;
     }
 
     ort.env.wasm.numThreads = resolveOptimalWasmThreads();
@@ -228,19 +251,27 @@ export class PiperRuntime {
     const configText = new TextDecoder().decode(configBytes);
     const parsedConfig = JSON.parse(configText) as PiperModelConfig;
 
-    const prevSession = this.session;
-    this.session = await ort.InferenceSession.create(new Uint8Array(modelBytes), {
+    const session = await ort.InferenceSession.create(new Uint8Array(modelBytes), {
       executionProviders: ['wasm'],
       graphOptimizationLevel: 'all',
       enableMemPattern: true,
       enableCpuMemArena: true,
     });
-    this.modelConfig = parsedConfig;
-    this.loadedVoiceId = voiceId;
 
-    if (prevSession) {
-      void prevSession.release().catch(() => undefined);
+    if (this.sessionCache.size >= MAX_CACHED_SESSIONS) {
+      const oldestKey = this.sessionCache.keys().next().value;
+      if (oldestKey !== undefined) {
+        const evicted = this.sessionCache.get(oldestKey);
+        this.sessionCache.delete(oldestKey);
+        if (evicted) {
+          void evicted.session.release().catch(() => undefined);
+        }
+      }
     }
+
+    const entry: CachedVoiceSession = { session, modelConfig: parsedConfig };
+    this.sessionCache.set(voiceId, entry);
+    return entry;
   }
 
   private async phonemize(text: string, espeakVoice: string): Promise<number[]> {
@@ -290,31 +321,31 @@ export class PiperRuntime {
     voiceId: string,
     requestGen: number
   ): Promise<PiperSynthesizeResult> {
-    await this.ensureVoiceLoaded(voiceId);
+    const { session, modelConfig } = await this.ensureVoiceLoaded(voiceId);
     if (requestGen !== this.generation) {
       throw new Error('Neural synthesis cancelled.');
     }
-    if (!this.session || !this.modelConfig) {
-      throw new Error('Piper ONNX session failed to initialize.');
-    }
 
-    const phonemeIds = await this.phonemize(trimmed, this.modelConfig.espeak.voice);
+    const phonemeIds = await this.phonemize(trimmed, modelConfig.espeak.voice);
     if (phonemeIds.length === 0) {
       throw new Error('Phonemizer produced empty phoneme sequence.');
     }
 
     const voiceSpec = findPiperVoiceById(voiceId);
     const speakerId = voiceSpec?.speakerId ?? 0;
-    const { noise_scale, length_scale, noise_w } = this.modelConfig.inference;
+    const { noise_scale, length_scale, noise_w } = modelConfig.inference;
     const effectiveLengthScale = Math.min(
       MAX_LENGTH_SCALE,
       Math.max(MIN_LENGTH_SCALE, length_scale * BASE_CADENCE_SCALE)
     );
 
-    const inputData = BigInt64Array.from(phonemeIds.map((id) => BigInt(id)));
+    const inputData = new BigInt64Array(phonemeIds.length);
+    for (let i = 0; i < phonemeIds.length; i += 1) {
+      inputData[i] = BigInt(phonemeIds[i] ?? 0);
+    }
     const feeds: Record<string, ort.Tensor> = {
       input: new ort.Tensor('int64', inputData, [1, phonemeIds.length]),
-      input_lengths: new ort.Tensor('int64', BigInt64Array.from([BigInt(phonemeIds.length)]), [1]),
+      input_lengths: new ort.Tensor('int64', new BigInt64Array([BigInt(phonemeIds.length)]), [1]),
       scales: new ort.Tensor(
         'float32',
         new Float32Array([noise_scale, effectiveLengthScale, noise_w]),
@@ -322,21 +353,18 @@ export class PiperRuntime {
       ),
     };
 
-    if (
-      this.modelConfig.speaker_id_map &&
-      Object.keys(this.modelConfig.speaker_id_map).length > 0
-    ) {
-      feeds.sid = new ort.Tensor('int64', BigInt64Array.from([BigInt(speakerId)]), [1]);
+    if (modelConfig.speaker_id_map && Object.keys(modelConfig.speaker_id_map).length > 0) {
+      feeds.sid = new ort.Tensor('int64', new BigInt64Array([BigInt(speakerId)]), [1]);
     }
 
-    const outputs = await this.session.run(feeds);
+    const outputs = await session.run(feeds);
     const outputTensor = outputs.output;
     if (!outputTensor || !(outputTensor.data instanceof Float32Array)) {
       throw new Error('Piper ONNX output missing Float32 PCM audio.');
     }
 
-    const trimmedPcm = trimPcmSilence(outputTensor.data, this.modelConfig.audio.sample_rate);
-    const wavBuffer = pcmToWavBuffer(trimmedPcm, this.modelConfig.audio.sample_rate);
+    const trimmedPcm = trimPcmSilence(outputTensor.data, modelConfig.audio.sample_rate);
+    const wavBuffer = pcmToWavBuffer(trimmedPcm, modelConfig.audio.sample_rate);
     return {
       mimeType: 'audio/wav',
       audioBase64: arrayBufferToBase64(wavBuffer),

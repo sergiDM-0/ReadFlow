@@ -306,6 +306,7 @@ export class ReadFlowContentApp {
     }
 
     this.mountAutoReadPill();
+    this.warmupNeuralForLang(document.documentElement.lang || navigator.language || 'es');
   }
 
   private isTopFrame(): boolean {
@@ -393,6 +394,12 @@ export class ReadFlowContentApp {
     if (this.settings.engine !== 'piper-neural') return;
     const fallbackLang = document.documentElement.lang || navigator.language || 'es';
     const lang = detectLanguageHeuristic(text, fallbackLang);
+    this.warmupNeuralForLang(lang);
+  }
+
+  private warmupNeuralForLang(rawLang: string): void {
+    if (this.settings.engine !== 'piper-neural') return;
+    const lang = rawLang.trim().toLowerCase().split(/[-_]/)[0] || 'es';
     const preferredVoiceId = this.settings.voicePreferences[lang];
     const key = `${lang}::${preferredVoiceId ?? ''}`;
     if (this.warmedVoiceKey === key) return;
@@ -527,6 +534,7 @@ export class ReadFlowContentApp {
       const lang = await detectLanguage(sample, {
         remoteDetect: detectViaBackground,
         fallbackLang,
+        preferFastLocal: true,
       });
 
       if (token !== this.speakSeq || !this.ttsManager || !this.currentEngine) return;

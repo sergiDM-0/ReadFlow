@@ -49,12 +49,31 @@ const LANGUAGE_STOPWORDS: Readonly<Record<string, readonly string[]>> = {
   pt: ['que', 'não', 'para', 'com', 'uma', 'você', 'isso', 'texto', 'como'],
   fr: ['les', 'des', 'une', 'pour', 'dans', 'avec', 'cette', 'vous', 'est'],
   de: ['der', 'die', 'das', 'und', 'für', 'mit', 'nicht', 'eine', 'ist'],
+  it: ['che', 'non', 'per', 'con', 'una', 'sono', 'questo', 'questa', 'della', 'anche', 'testo', 'come'],
 };
+
+const WORD_TO_LANGS: ReadonlyMap<string, readonly string[]> = (() => {
+  const index = new Map<string, string[]>();
+  for (const [lang, stopwords] of Object.entries(LANGUAGE_STOPWORDS)) {
+    for (const word of stopwords) {
+      const list = index.get(word);
+      if (list) {
+        list.push(lang);
+      } else {
+        index.set(word, [lang]);
+      }
+    }
+  }
+  return index;
+})();
 
 const SPANISH_CHARS_RE = /[ñáéíóúü¿¡]/i;
 const PORTUGUESE_CHARS_RE = /[ãõç]/i;
 const FRENCH_CHARS_RE = /[àâçèêëîïôùûœ]/i;
 const GERMAN_CHARS_RE = /[äöüß]/i;
+const ITALIAN_CHARS_RE = /[ìò]/i;
+const WORD_TOKEN_RE = /[a-záéíóúüñãõçàâèêëîïôùûœäößì]+/gi;
+const MAX_HEURISTIC_WORDS = 64;
 
 /** Normalizes a language tag to lowercase hyphenated format (e.g. `'es_MX'` -> `'es-mx'`). */
 export function normalizeLangCode(lang: string): string {
@@ -71,29 +90,34 @@ function scoreHeuristic(
   text: string,
   fallbackLang: string
 ): { readonly lang: string; readonly bestScore: number; readonly margin: number } {
-  const words = text
-    .toLowerCase()
-    .split(/[^a-záéíóúüñãõçàâèêëîïôùûœäöß]+/i)
-    .filter((w) => w.length >= 2);
+  const lower = text.toLowerCase();
+  const scores: Record<string, number> = { es: 0, en: 0, pt: 0, fr: 0, de: 0, it: 0 };
 
-  if (words.length === 0) {
-    return { lang: getPrimaryLang(fallbackLang), bestScore: 0, margin: 0 };
-  }
-
-  const scores: Record<string, number> = { es: 0, en: 0, pt: 0, fr: 0, de: 0 };
-
-  for (const word of words) {
-    for (const [lang, stopwords] of Object.entries(LANGUAGE_STOPWORDS)) {
-      if (stopwords.includes(word)) {
+  WORD_TOKEN_RE.lastIndex = 0;
+  let matchedWords = 0;
+  let match: RegExpExecArray | null;
+  while (matchedWords < MAX_HEURISTIC_WORDS && (match = WORD_TOKEN_RE.exec(lower)) !== null) {
+    const word = match[0];
+    if (word.length < 2) continue;
+    matchedWords += 1;
+    const langs = WORD_TO_LANGS.get(word);
+    if (langs) {
+      for (let i = 0; i < langs.length; i += 1) {
+        const lang = langs[i]!;
         scores[lang] = (scores[lang] ?? 0) + 2;
       }
     }
+  }
+
+  if (matchedWords === 0) {
+    return { lang: getPrimaryLang(fallbackLang), bestScore: 0, margin: 0 };
   }
 
   if (SPANISH_CHARS_RE.test(text)) scores.es = (scores.es ?? 0) + 3;
   if (PORTUGUESE_CHARS_RE.test(text)) scores.pt = (scores.pt ?? 0) + 3;
   if (FRENCH_CHARS_RE.test(text)) scores.fr = (scores.fr ?? 0) + 2;
   if (GERMAN_CHARS_RE.test(text)) scores.de = (scores.de ?? 0) + 3;
+  if (ITALIAN_CHARS_RE.test(text)) scores.it = (scores.it ?? 0) + 3;
 
   let bestLang = getPrimaryLang(fallbackLang);
   let bestScore = 0;

@@ -3,7 +3,6 @@ import { getPrimaryLang } from '../core/language-detector';
 import { PIPER_NEURAL_VOICES } from '../core/neural/piper-voices';
 import {
   ICON_COLOR_PRESETS,
-  createBrandIconSvg,
   darkenHexColor,
   getContrastingForeground,
   isValidHexColor,
@@ -124,22 +123,6 @@ function applyPopupThemeAndColors(
   target.style.setProperty('--accent-hover', darkenHexColor(accent, 0.16));
   target.style.setProperty('--accent-fg', getContrastingForeground(accent));
   target.style.setProperty('--focus-ring', accent);
-}
-
-function renderBrandIcons(
-  brandSlot: HTMLElement | null,
-  previewSlot: HTMLElement | null,
-  appearance: AppearanceSettings,
-  autoReadActive: boolean
-): void {
-  if (brandSlot) {
-    brandSlot.textContent = '';
-    brandSlot.appendChild(createBrandIconSvg(appearance, 30, autoReadActive));
-  }
-  if (previewSlot) {
-    previewSlot.textContent = '';
-    previewSlot.appendChild(createBrandIconSvg(appearance, 36, autoReadActive));
-  }
 }
 
 /**
