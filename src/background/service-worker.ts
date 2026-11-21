@@ -130,27 +130,6 @@ function applyToolbarIconAndBadge(settings: ExtensionSettings): void {
   }
 
   const autoReadActive = settings.autoReadSelection;
-  const icon16 = renderToolbarIconImageData(settings.appearance, 16, {
-    enabled: settings.enabled,
-    autoReadActive,
-  });
-  const icon32 = renderToolbarIconImageData(settings.appearance, 32, {
-    enabled: settings.enabled,
-    autoReadActive,
-  });
-  const icon48 = renderToolbarIconImageData(settings.appearance, 48, {
-    enabled: settings.enabled,
-    autoReadActive,
-  });
-
-  if (icon16 && icon32 && icon48 && typeof actionApi.setIcon === 'function') {
-    const imageDataMap: Record<string, browser.Action.ImageDataType> = {
-      '16': icon16 as unknown as browser.Action.ImageDataType,
-      '32': icon32 as unknown as browser.Action.ImageDataType,
-      '48': icon48 as unknown as browser.Action.ImageDataType,
-    };
-    void actionApi.setIcon({ imageData: imageDataMap }).catch(() => undefined);
-  }
 
   if (typeof actionApi.setBadgeText === 'function') {
     const badgeText = !settings.enabled ? 'OFF' : autoReadActive ? 'ON' : '';
