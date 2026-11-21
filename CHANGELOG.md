@@ -5,6 +5,24 @@ All notable changes to **ReadFlow** will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **6-Language Math Verbalization & Code Placeholder Localization (`math-verbalizer.ts`, `cleaner.ts`)**:
+  - Extended `verbalizeMathAndQuantities()` and `cleanText()` code-block placeholders beyond `es`/`en` to cover all 6 supported languages: Portuguese (`pt-BR`), French (`fr-FR`), German (`de-DE`), and Italian (`it-IT`).
+- **Store & Governance Readiness (`PRIVACY.md`, `manifest.firefox.json`, `.github/`)**:
+  - Added public Privacy Policy (`PRIVACY.md`) linked from `README.md` and declared `"data_collection_permissions": { "required": ["none"] }` in `manifest.firefox.json`.
+  - Added `.github/CODEOWNERS`, `.github/ISSUE_TEMPLATE/config.yml`, and Prettier `format:check` + least-privilege `permissions` to `.github/workflows/ci.yml`.
+
+### Changed
+
+- **Language Detection, Voice Loading & Audio Encoding Performance**:
+  - Replaced nested stopword array scans in `language-detector.ts` with a precomputed `O(1)` `WORD_TO_LANGS` map, added Italian (`it`) stopwords/diacritics, and enabled `preferFastLocal: true` in streaming playback (`app.ts`) to skip redundant IPC roundtrips.
+  - Added a 2-slot LRU ONNX `InferenceSession` cache (`MAX_CACHED_SESSIONS = 2`), cached `CacheStorage` handle (`getModelCache()`), direct `BigInt64Array` allocation in `piper-runtime.ts`, `Int16Array` little-endian WAV encoding in `wav-encoder.ts`, and proactive page-language warmup on `ReadFlowContentApp` initialization.
+- **Unified ReadFlow Brand Icons**:
+  - Updated extension/dock icons (`public/icons/icon-{16,32,48,128}.png`), popup brand/preview slots (`popup-controller.ts`), and `README.md` banner (`assets/logo-name.jpeg`), removing the legacy canvas icon override in `service-worker.ts`.
+
 ## [1.3.2] - 2026-11-20
 
 ### Added
