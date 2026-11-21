@@ -305,12 +305,12 @@ export async function initPopup(options: InitPopupOptions): Promise<void> {
 
   const syncDom = () => {
     applyPopupThemeAndColors(root, settings.theme, settings.appearance);
-    renderBrandIcons(
-      brandIconSlot,
-      previewDockIcon,
-      settings.appearance,
-      settings.autoReadSelection
-    );
+    const renderImg = (slot: HTMLElement | null, size: number) => {
+      if (!slot) return;
+      slot.innerHTML = `<img src="icons/icon-48.png" alt="ReadFlow" width="${size}" height="${size}" style="border-radius: 6px; display: block;" />`;
+    };
+    renderImg(brandIconSlot, 28);
+    renderImg(previewDockIcon, 28);
 
     if (toggleEnabled) toggleEnabled.checked = settings.enabled;
     if (currentDomainLabel) {
