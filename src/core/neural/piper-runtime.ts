@@ -38,7 +38,8 @@ export interface PiperSynthesizeResult {
 
 const CACHE_NAME = 'readflow-piper-models-v1';
 const MAX_AUDIO_CACHE_ENTRIES = 24;
-const MAX_CACHED_SESSIONS = 2;
+// Keep at most 1 active ONNX session in the 32-bit WASM heap to prevent OOM aborts when switching voices.
+const MAX_CACHED_SESSIONS = 1;
 // Fixed brisk natural cadence (~10% livelier) so voice timbre stays 100% consistent across speed changes.
 const BASE_CADENCE_SCALE = 0.9;
 const MIN_LENGTH_SCALE = 0.65;
@@ -251,23 +252,23 @@ export class PiperRuntime {
     const configText = new TextDecoder().decode(configBytes);
     const parsedConfig = JSON.parse(configText) as PiperModelConfig;
 
+    // Release any active ONNX session BEFORE creating the next one to avoid doubling peak WASM heap usage.
+    while (this.sessionCache.size >= MAX_CACHED_SESSIONS) {
+      const oldestKey = this.sessionCache.keys().next().value;
+      if (oldestKey === undefined) break;
+      const evicted = this.sessionCache.get(oldestKey);
+      this.sessionCache.delete(oldestKey);
+      if (evicted) {
+        await evicted.session.release().catch(() => undefined);
+      }
+    }
+
     const session = await ort.InferenceSession.create(new Uint8Array(modelBytes), {
       executionProviders: ['wasm'],
       graphOptimizationLevel: 'all',
-      enableMemPattern: true,
-      enableCpuMemArena: true,
+      enableMemPattern: false,
+      enableCpuMemArena: false,
     });
-
-    if (this.sessionCache.size >= MAX_CACHED_SESSIONS) {
-      const oldestKey = this.sessionCache.keys().next().value;
-      if (oldestKey !== undefined) {
-        const evicted = this.sessionCache.get(oldestKey);
-        this.sessionCache.delete(oldestKey);
-        if (evicted) {
-          void evicted.session.release().catch(() => undefined);
-        }
-      }
-    }
 
     const entry: CachedVoiceSession = { session, modelConfig: parsedConfig };
     this.sessionCache.set(voiceId, entry);
@@ -358,16 +359,25 @@ export class PiperRuntime {
     }
 
     const outputs = await session.run(feeds);
-    const outputTensor = outputs.output;
-    if (!outputTensor || !(outputTensor.data instanceof Float32Array)) {
-      throw new Error('Piper ONNX output missing Float32 PCM audio.');
-    }
+    try {
+      const outputTensor = outputs.output;
+      if (!outputTensor || !(outputTensor.data instanceof Float32Array)) {
+        throw new Error('Piper ONNX output missing Float32 PCM audio.');
+      }
 
-    const trimmedPcm = trimPcmSilence(outputTensor.data, modelConfig.audio.sample_rate);
-    const wavBuffer = pcmToWavBuffer(trimmedPcm, modelConfig.audio.sample_rate);
-    return {
-      mimeType: 'audio/wav',
-      audioBase64: arrayBufferToBase64(wavBuffer),
-    };
+      const trimmedPcm = trimPcmSilence(outputTensor.data, modelConfig.audio.sample_rate);
+      const wavBuffer = pcmToWavBuffer(trimmedPcm, modelConfig.audio.sample_rate);
+      return {
+        mimeType: 'audio/wav',
+        audioBase64: arrayBufferToBase64(wavBuffer),
+      };
+    } finally {
+      for (const tensor of Object.values(feeds)) {
+        (tensor as { dispose?: () => void }).dispose?.();
+      }
+      for (const tensor of Object.values(outputs)) {
+        (tensor as { dispose?: () => void }).dispose?.();
+      }
+    }
   }
 }

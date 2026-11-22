@@ -21,7 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Language Detection, Voice Loading & Audio Encoding Performance**:
   - Replaced nested stopword array scans in `language-detector.ts` with a precomputed `O(1)` `WORD_TO_LANGS` map, added Italian (`it`) stopwords/diacritics, and enabled `preferFastLocal: true` in streaming playback (`app.ts`) to skip redundant IPC roundtrips.
-  - Added a 2-slot LRU ONNX `InferenceSession` cache (`MAX_CACHED_SESSIONS = 2`), cached `CacheStorage` handle (`getModelCache()`), direct `BigInt64Array` allocation in `piper-runtime.ts`, `Int16Array` little-endian WAV encoding in `wav-encoder.ts`, and proactive page-language warmup on `ReadFlowContentApp` initialization.
+  - Added eager ONNX `InferenceSession` release (`MAX_CACHED_SESSIONS = 1`) before allocating a new voice model, disabled WASM CPU memory arena hoarding (`enableCpuMemArena: false`, `enableMemPattern: false`), disposed per-utterance ONNX tensors in `piper-runtime.ts`, cached the `CacheStorage` handle (`getModelCache()`), used direct `BigInt64Array` allocation, `Int16Array` little-endian WAV encoding in `wav-encoder.ts`, and proactive page-language warmup on `ReadFlowContentApp` initialization.
 - **Unified ReadFlow Brand Icons**:
   - Updated extension/dock icons (`public/icons/icon-{16,32,48,128}.png`), popup brand/preview slots (`popup-controller.ts`), and `README.md` banner (`assets/logo-name.jpeg`), removing the legacy canvas icon override in `service-worker.ts`.
 
