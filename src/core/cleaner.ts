@@ -62,7 +62,7 @@ const CODE_PLACEHOLDERS: Readonly<Record<string, string>> = {
 };
 
 function getCodePlaceholder(lang?: string): string {
-  const prefix = (lang ?? 'en').trim().toLowerCase().split(/[-_]/)[0] ?? 'en';
+  const prefix = (lang ?? 'en').trim().toLowerCase().split(/[-_]/)[0]!;
   return CODE_PLACEHOLDERS[prefix] ?? 'code block omitted.';
 }
 

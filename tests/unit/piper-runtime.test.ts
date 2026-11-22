@@ -138,6 +138,9 @@ describe('PiperRuntime', () => {
     expect(createSessionMock).toHaveBeenCalledTimes(1);
     expect(phonemizeFactoryMock).toHaveBeenCalledTimes(1);
     expect(runMock).toHaveBeenCalledTimes(1);
+
+    runtime.dispose();
+    expect(releaseMock).toHaveBeenCalledTimes(1);
   });
 
   it('recovers cleanly by recreating phonemizer if callMain throws', async () => {

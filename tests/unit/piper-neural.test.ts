@@ -359,6 +359,58 @@ describe('PiperNeuralEngine', () => {
           code: 'ENGINE_UNAVAILABLE',
         }
       );
+
+      // WASM OOM error falls back seamlessly to WebSpeechEngine and forwards pause/resume/stop
+      const speechSpeak = vi.fn((u: { onend?: () => void }) => {
+        setTimeout(() => u.onend?.(), 15);
+      });
+      const speechPause = vi.fn();
+      const speechResume = vi.fn();
+      const speechCancel = vi.fn();
+      const origSynth = window.speechSynthesis;
+      const origUtterance = window.SpeechSynthesisUtterance;
+      Object.defineProperty(window, 'speechSynthesis', {
+        configurable: true,
+        value: {
+          speaking: true,
+          paused: false,
+          getVoices: () => [],
+          speak: speechSpeak,
+          pause: speechPause,
+          resume: speechResume,
+          cancel: speechCancel,
+          addEventListener: vi.fn(),
+          removeEventListener: vi.fn(),
+        },
+      });
+      Object.defineProperty(window, 'SpeechSynthesisUtterance', {
+        configurable: true,
+        value: vi.fn(function (this: Record<string, unknown>, text: string) {
+          this.text = text;
+        }),
+      });
+      try {
+        const oomTransport = vi
+          .fn()
+          .mockRejectedValue(new Error('Aborted(InternalError: out of memory)'));
+        const oomEngine = new PiperNeuralEngine(oomTransport);
+        const oomPromise = oomEngine.speak('Fallback por memoria', { lang: 'es', rate: 1 });
+        await new Promise((r) => setTimeout(r, 5));
+        oomEngine.pause();
+        oomEngine.resume();
+        await expect(oomPromise).resolves.toBeUndefined();
+        expect(speechSpeak).toHaveBeenCalledOnce();
+        expect(speechPause).toHaveBeenCalled();
+        expect(speechResume).toHaveBeenCalled();
+        oomEngine.stop();
+        oomEngine.dispose();
+      } finally {
+        Object.defineProperty(window, 'speechSynthesis', { configurable: true, value: origSynth });
+        Object.defineProperty(window, 'SpeechSynthesisUtterance', {
+          configurable: true,
+          value: origUtterance,
+        });
+      }
     } finally {
       Object.defineProperty(window, 'Audio', { configurable: true, value: origAudio });
       createUrlSpy.mockRestore();
