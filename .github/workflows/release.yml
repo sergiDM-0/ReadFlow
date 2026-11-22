@@ -34,7 +34,7 @@ jobs:
           git archive --format=zip -o "release-artifacts/readflow-source-${TAG}.zip" HEAD
           git archive --format=tar.gz -o "release-artifacts/readflow-source-${TAG}.tar.gz" HEAD
       - name: Publish GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           generate_release_notes: true
           files: release-artifacts/*
