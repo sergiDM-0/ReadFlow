@@ -17,6 +17,10 @@
 
 ## Características principales
 
+
+https://github.com/user-attachments/assets/6884d852-4105-4b35-a5e9-e93df1a7d4fe
+
+
 ### 1. Motor neuronal suave 100 % local y arranque casi instantáneo
 
 - **Piper Neural TTS por defecto (`piper-neural`):** Ejecuta síntesis neuronal VITS en local mediante `onnxruntime-web` (SIMD) y `@diffusionstudio/piper-wasm` (`espeak-ng` compilado a WebAssembly con instancia persistente `noExitRuntime: true`). Incluye voces suaves curadas (`es_MX-claude-high` para español, `en_US-hfc_female-medium` para inglés y voces en ES/EN/PT/FR/DE/IT) que se descargan una sola vez en `Cache Storage` (`readflow-piper-models-v1`) y luego funcionan **100 % offline**.
