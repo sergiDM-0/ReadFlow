@@ -289,7 +289,9 @@ describe('PiperNeuralEngine', () => {
       close: closeCtx,
     };
 
-    const audioCtxCtor = vi.fn(() => fakeCtx);
+    const audioCtxCtor = vi.fn(function () {
+      return fakeCtx;
+    });
     Object.defineProperty(window, 'AudioContext', {
       configurable: true,
       value: audioCtxCtor,

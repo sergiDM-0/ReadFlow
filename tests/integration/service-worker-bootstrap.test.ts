@@ -10,12 +10,14 @@ const { piperSynthesizeMock, piperWarmupMock, piperCancelMock } = vi.hoisted(() 
 }));
 
 vi.mock('../../src/core/neural/piper-runtime', () => ({
-  PiperRuntime: vi.fn().mockImplementation(() => ({
-    synthesize: piperSynthesizeMock,
-    warmup: piperWarmupMock,
-    cancelPending: piperCancelMock,
-    dispose: vi.fn(),
-  })),
+  PiperRuntime: vi.fn(function () {
+    return {
+      synthesize: piperSynthesizeMock,
+      warmup: piperWarmupMock,
+      cancelPending: piperCancelMock,
+      dispose: vi.fn(),
+    };
+  }),
 }));
 
 describe('service-worker entrypoint wiring', () => {
@@ -95,7 +97,7 @@ describe('service-worker entrypoint wiring', () => {
     const origRevokeObjectUrl = URL.revokeObjectURL;
     URL.createObjectURL = vi.fn(() => 'blob:bg-audio');
     URL.revokeObjectURL = vi.fn();
-    globalThis.Audio = vi.fn().mockImplementation(() => {
+    globalThis.Audio = vi.fn(function () {
       const instance = {
         playbackRate: 1,
         onended: null as (() => void) | null,
