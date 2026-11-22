@@ -65,18 +65,6 @@ function getModelCache(): Promise<Cache | null> {
   return modelCachePromise;
 }
 
-function resolveOptimalWasmThreads(): number {
-  const g = globalThis as unknown as {
-    crossOriginIsolated?: boolean;
-    navigator?: { hardwareConcurrency?: number };
-  };
-  if (g.crossOriginIsolated === true) {
-    const cores = g.navigator?.hardwareConcurrency ?? 2;
-    return Math.min(4, Math.max(1, cores));
-  }
-  return 1;
-}
-
 async function fetchCachedBytes(url: string): Promise<ArrayBuffer> {
   try {
     const cache = await getModelCache();
@@ -239,20 +227,21 @@ export class PiperRuntime {
       return cached;
     }
 
-    ort.env.wasm.numThreads = resolveOptimalWasmThreads();
+    ort.env.wasm.numThreads = 1;
+    (ort.env.wasm as { proxy?: boolean }).proxy = false;
     ort.env.wasm.wasmPaths = this.wasmPaths.ortWasmDir;
 
     const { modelUrl, configUrl } = getPiperModelUrls(voiceId);
-    const [, configBytes, modelBytes] = await Promise.all([
+    const [, configBytes] = await Promise.all([
       this.ensurePhonemizerLoaded(),
       fetchCachedBytes(configUrl),
-      fetchCachedBytes(modelUrl),
     ]);
 
     const configText = new TextDecoder().decode(configBytes);
     const parsedConfig = JSON.parse(configText) as PiperModelConfig;
 
-    // Release any active ONNX session BEFORE creating the next one to avoid doubling peak WASM heap usage.
+    // Release any active ONNX session BEFORE fetching/allocating the next model (~60-115 MB)
+    // so the 32-bit WASM heap never holds two models simultaneously.
     while (this.sessionCache.size >= MAX_CACHED_SESSIONS) {
       const oldestKey = this.sessionCache.keys().next().value;
       if (oldestKey === undefined) break;
@@ -263,16 +252,21 @@ export class PiperRuntime {
       }
     }
 
-    const session = await ort.InferenceSession.create(new Uint8Array(modelBytes), {
+    const session = await this.createOnnxSession(modelUrl);
+
+    const entry: CachedVoiceSession = { session, modelConfig: parsedConfig };
+    this.sessionCache.set(voiceId, entry);
+    return entry;
+  }
+
+  private async createOnnxSession(modelUrl: string): Promise<ort.InferenceSession> {
+    const modelBytes = await fetchCachedBytes(modelUrl);
+    return ort.InferenceSession.create(new Uint8Array(modelBytes), {
       executionProviders: ['wasm'],
       graphOptimizationLevel: 'all',
       enableMemPattern: false,
       enableCpuMemArena: false,
     });
-
-    const entry: CachedVoiceSession = { session, modelConfig: parsedConfig };
-    this.sessionCache.set(voiceId, entry);
-    return entry;
   }
 
   private async phonemize(text: string, espeakVoice: string): Promise<number[]> {

@@ -12,6 +12,7 @@ const CONTEXT_MENU_ID = 'readflow-read-selection';
 
 interface ChromeOffscreenApi {
   hasDocument?: () => Promise<boolean>;
+  closeDocument?: () => Promise<void>;
   createDocument: (params: {
     url: string;
     reasons: string[];
@@ -56,6 +57,37 @@ async function ensureOffscreenDocument(offscreen: ChromeOffscreenApi): Promise<v
   await offscreenCreatePromise;
 }
 
+function isRecoverableWasmError(message: string): boolean {
+  const lower = message.toLowerCase();
+  return (
+    lower.includes('out of memory') ||
+    lower.includes('no available backend') ||
+    lower.includes('aborted(')
+  );
+}
+
+async function sendOffscreenSynthesize(
+  offscreen: ChromeOffscreenApi,
+  request: {
+    readonly text: string;
+    readonly voiceId: string;
+    readonly rate?: number;
+  }
+): Promise<MessageResult<{ readonly mimeType: string; readonly audioBase64: string }>> {
+  await ensureOffscreenDocument(offscreen);
+  return (await browser.runtime.sendMessage({
+    type: 'OFFSCREEN_PIPER_SYNTHESIZE',
+    payload: {
+      text: request.text,
+      voiceId: request.voiceId,
+      rate: request.rate as import('../shared/types').PlaybackRate | undefined,
+    },
+  } satisfies ExtensionMessage)) as MessageResult<{
+    readonly mimeType: string;
+    readonly audioBase64: string;
+  }>;
+}
+
 async function synthesizeNeuralInBackground(request: {
   readonly text: string;
   readonly voiceId: string;
@@ -63,18 +95,18 @@ async function synthesizeNeuralInBackground(request: {
 }): Promise<{ readonly mimeType: string; readonly audioBase64: string }> {
   const offscreen = getChromeOffscreen();
   if (offscreen) {
-    await ensureOffscreenDocument(offscreen);
-    const response = (await browser.runtime.sendMessage({
-      type: 'OFFSCREEN_PIPER_SYNTHESIZE',
-      payload: {
-        text: request.text,
-        voiceId: request.voiceId,
-        rate: request.rate as import('../shared/types').PlaybackRate | undefined,
-      },
-    } satisfies ExtensionMessage)) as MessageResult<{
-      readonly mimeType: string;
-      readonly audioBase64: string;
-    }>;
+    let response = await sendOffscreenSynthesize(offscreen, request);
+
+    // If WASM runtime aborted (e.g., OOM in offscreen), recycle the offscreen document once cleanly.
+    if (
+      (!response || !response.ok) &&
+      offscreen.closeDocument &&
+      response?.message &&
+      isRecoverableWasmError(response.message)
+    ) {
+      await offscreen.closeDocument().catch(() => undefined);
+      response = await sendOffscreenSynthesize(offscreen, request);
+    }
 
     if (!response || !response.ok) {
       throw new Error(
