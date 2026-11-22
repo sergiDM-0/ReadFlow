@@ -15,10 +15,21 @@
 
 ---
 
-## Características principales
-
+## Demo y capturas
 
 https://github.com/user-attachments/assets/6884d852-4105-4b35-a5e9-e93df1a7d4fe
+
+| Lectura en vivo y Mini-reproductor | Panel de configuración (General) |
+|---|---|
+| ![Uso de ReadFlow](assets/screenshots/uso.png) | ![Configuración del dock](assets/screenshots/dock_config.png) |
+
+| Personalización de apariencia | Auto-lectura acoplable |
+|---|---|
+| ![Apariencia y colores](assets/screenshots/dock_config2.png) | ![Auto-lectura acoplable](assets/screenshots/autoread.png) |
+
+---
+
+## Características principales
 
 
 ### 1. Motor neuronal suave 100 % local y arranque casi instantáneo
