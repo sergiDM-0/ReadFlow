@@ -280,6 +280,24 @@ describe('popup controller', () => {
     const engineSel = document.querySelector('#select-engine') as HTMLSelectElement;
     engineSel.value = 'local-http';
     engineSel.dispatchEvent(new Event('change'));
+    engineSel.value = 'piper-neural';
+    engineSel.dispatchEvent(new Event('change'));
+    await new Promise((r) => setTimeout(r, 10));
+    expect(warmupNeuralVoice).toHaveBeenCalled();
+    engineSel.value = 'local-http';
+    engineSel.dispatchEvent(new Event('change'));
+
+    // Switching tabs with ArrowRight/ArrowLeft updates active tab
+    const tabGeneral = document.querySelector('#tab-general') as HTMLButtonElement;
+    tabGeneral.click();
+    expect((document.querySelector('#panel-general') as HTMLElement).hidden).toBe(false);
+
+    // Quick-read rejection surfaces helpful message
+    triggerQuickRead.mockRejectedValueOnce(new Error('No tab'));
+    quickInput.value = 'Texto con error';
+    quickReadBtn.click();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(document.querySelector('#quick-feedback')?.getAttribute('data-state')).toBe('error');
 
     const autoSelCb = document.querySelector('#toggle-autoread-selection') as HTMLInputElement;
     autoSelCb.checked = true;
@@ -317,5 +335,83 @@ describe('popup controller', () => {
     expect(saved.omitCodeBlocks).toBe(false);
     expect(saved.omitFileNames).toBe(false);
     expect(saved.blockedDomains).not.toContain('news.example.com');
+  });
+
+  it('handles internal pages without active host, empty quick-read result, and advanced tab', async () => {
+    const store: Record<string, unknown> = {};
+    const storage = createStorageAdapter({
+      get: async (k) => ({ [k]: store[k] }),
+      set: async (items) => {
+        Object.assign(store, items);
+      },
+    });
+    await initPopup({
+      root: document,
+      storage,
+      getActiveTabHost: async () => '',
+      getAvailableVoices: async () => [],
+      triggerQuickRead: async () => false,
+    });
+
+    expect(document.querySelector('#current-domain')?.textContent).toBe('Página interna');
+    expect((document.querySelector('#toggle-domain-block') as HTMLInputElement).disabled).toBe(
+      true
+    );
+
+    (document.querySelector('#tab-advanced') as HTMLButtonElement).click();
+    expect((document.querySelector('#panel-advanced') as HTMLElement).hidden).toBe(false);
+
+    (document.querySelector('#btn-quick-read') as HTMLButtonElement).click();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(document.querySelector('#quick-feedback')?.textContent).toContain('Selecciona texto');
+
+    // Ignores invalid hex colors and handles missing optional DOM nodes gracefully
+    const quickPicker = document.querySelector('#quick-color-picker') as HTMLInputElement;
+    quickPicker.type = 'text';
+    quickPicker.value = 'not-hex';
+    quickPicker.dispatchEvent(new Event('input'));
+
+    const bgInput = document.querySelector('#input-icon-bg') as HTMLInputElement;
+    bgInput.type = 'text';
+    bgInput.value = 'bad';
+    bgInput.dispatchEvent(new Event('input'));
+
+    const fgInput = document.querySelector('#input-icon-fg') as HTMLInputElement;
+    fgInput.type = 'text';
+    fgInput.value = 'bad';
+    fgInput.dispatchEvent(new Event('input'));
+
+    const accentInput = document.querySelector('#input-accent-color') as HTMLInputElement;
+    accentInput.type = 'text';
+    accentInput.value = 'bad';
+    accentInput.dispatchEvent(new Event('input'));
+
+    // Storage failure when saving local endpoint shows error feedback
+    const failingStorage = createStorageAdapter({
+      get: async () => ({}),
+      set: async () => {
+        throw new Error('Quota exceeded');
+      },
+    });
+    await initPopup({
+      root: document,
+      storage: failingStorage,
+      getActiveTabHost: async () => '',
+      getAvailableVoices: async () => [],
+    });
+    const endpointInput = document.querySelector('#input-local-endpoint') as HTMLInputElement;
+    endpointInput.value = 'http://127.0.0.1:5000/tts';
+    (document.querySelector('#btn-save-endpoint') as HTMLButtonElement).click();
+    await new Promise((r) => setTimeout(r, 10));
+    expect(document.querySelector('#endpoint-feedback')?.getAttribute('data-state')).toBe('error');
+
+    // Empty root initializes without throwing
+    const emptyRoot = document.createElement('div');
+    await initPopup({
+      root: emptyRoot,
+      storage,
+      getActiveTabHost: async () => '',
+      getAvailableVoices: async () => [],
+    });
   });
 });

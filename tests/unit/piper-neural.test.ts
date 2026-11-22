@@ -61,6 +61,10 @@ describe('pcmToWavBuffer', () => {
     expect(trimmed.length).toBe(230);
     expect(trimPcmSilence(new Float32Array(0), sampleRate).length).toBe(0);
     expect(trimPcmSilence(new Float32Array(20), sampleRate).length).toBe(20);
+    // All-silent buffer or invalid sampleRate returns input untouched
+    const allSilent = new Float32Array(200);
+    expect(trimPcmSilence(allSilent, sampleRate)).toBe(allSilent);
+    expect(trimPcmSilence(pcm, 0)).toBe(pcm);
   });
 });
 

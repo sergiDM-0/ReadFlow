@@ -257,4 +257,31 @@ describe('TTSManager', () => {
     manager.dispose();
     expect(engine.dispose).toHaveBeenCalledOnce();
   });
+
+  it('handles idle guard calls, empty queues, and prefetch during enqueue', async () => {
+    const { engine, calls } = createFakeEngine();
+    engine.prefetch = vi.fn();
+    const manager = new TTSManager(engine);
+
+    manager.pause();
+    manager.resume();
+    manager.retry();
+    manager.togglePauseResume();
+    manager.next();
+    manager.prev();
+    await manager.play(['   '], { lang: 'en', rate: 1, source: 'selection' });
+    await manager.enqueue(['   '], { lang: 'en', rate: 1, source: 'selection' });
+    expect(manager.getState().status).toBe('idle');
+
+    void manager.play(['One.'], { lang: 'en', rate: 1, source: 'selection' });
+    await Promise.resolve();
+    await manager.enqueue(['Two.', 'Three.'], { lang: 'en', rate: 1, source: 'gemini-stream' });
+    expect(engine.prefetch).toHaveBeenCalled();
+
+    manager.pause();
+    manager.setRate(1.5);
+    expect(manager.getState().rate).toBe(1.5);
+    calls[0]?.deferred.resolve();
+    manager.stop();
+  });
 });

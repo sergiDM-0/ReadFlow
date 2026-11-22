@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import browser from 'webextension-polyfill';
+import { SETTINGS_STORAGE_KEY } from '../../src/shared/storage';
+import { DEFAULT_SETTINGS } from '../../src/shared/types';
 
 const { piperSynthesizeMock, piperWarmupMock, piperCancelMock } = vi.hoisted(() => ({
   piperSynthesizeMock: vi
@@ -35,6 +37,7 @@ describe('service-worker entrypoint wiring', () => {
     const messageListeners: Array<
       (msg: unknown, sender: browser.Runtime.MessageSender) => unknown
     > = [];
+    const storageListeners: Array<(changes: Record<string, { newValue?: unknown }>) => void> = [];
 
     (
       browser.runtime as unknown as { onInstalled: { addListener: ReturnType<typeof vi.fn> } }
@@ -57,6 +60,9 @@ describe('service-worker entrypoint wiring', () => {
     });
     vi.mocked(browser.runtime.onMessage.addListener).mockImplementation((fn) => {
       messageListeners.push(fn as (msg: unknown, sender: browser.Runtime.MessageSender) => unknown);
+    });
+    vi.mocked(browser.storage.onChanged.addListener).mockImplementation((fn) => {
+      storageListeners.push(fn as (changes: Record<string, { newValue?: unknown }>) => void);
     });
     vi.mocked(browser.tabs.query).mockResolvedValue([{ id: 42 } as browser.Tabs.Tab]);
 
@@ -156,6 +162,38 @@ describe('service-worker entrypoint wiring', () => {
 
     // Startup does not eagerly compile WASM on extension reload (lazy warmup on demand prevents Firefox OOM)
     expect(piperWarmupMock).not.toHaveBeenCalled();
+
+    // Firefox path for NEURAL_TTS_WARMUP, NEURAL_TTS_CANCEL, and pagehide runtime disposal
+    const ffWarmupRes = await messageListeners[0]?.(
+      { type: 'NEURAL_TTS_WARMUP', payload: { lang: 'es' } },
+      { id: browser.runtime.id }
+    );
+    expect(ffWarmupRes).toMatchObject({ ok: true, data: { voiceId: 'es_MX-claude-high' } });
+    expect(piperWarmupMock).toHaveBeenCalledOnce();
+
+    const ffCancelRes = await messageListeners[0]?.(
+      { type: 'NEURAL_TTS_CANCEL' },
+      { id: browser.runtime.id }
+    );
+    expect(ffCancelRes).toEqual({ ok: true, data: { cancelled: true } });
+    expect(piperCancelMock).toHaveBeenCalledOnce();
+
+    window.dispatchEvent(new Event('pagehide'));
+
+    // Storage changes update toolbar badge & title across disabled and auto-read states
+    storageListeners.forEach((fn) =>
+      fn({ [SETTINGS_STORAGE_KEY]: { newValue: { ...DEFAULT_SETTINGS, enabled: false } } })
+    );
+    expect(browser.action.setBadgeText).toHaveBeenCalledWith({ text: 'OFF' });
+
+    storageListeners.forEach((fn) =>
+      fn({
+        [SETTINGS_STORAGE_KEY]: {
+          newValue: { ...DEFAULT_SETTINGS, enabled: true, autoReadSelection: true },
+        },
+      })
+    );
+    expect(browser.action.setBadgeText).toHaveBeenCalledWith({ text: 'ON' });
 
     // Chrome offscreen path for NEURAL_TTS_SYNTHESIZE, voice-switch recycling, OOM recovery, and NEURAL_TTS_WARMUP
     const createDocument = vi.fn().mockResolvedValue(undefined);
