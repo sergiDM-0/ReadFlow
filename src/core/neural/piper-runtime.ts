@@ -118,6 +118,17 @@ export class PiperRuntime {
     this.generation += 1;
   }
 
+  /** Releases active ONNX sessions and clears in-memory caches on extension unload/suspend. */
+  public dispose(): void {
+    this.cancelPending();
+    for (const entry of this.sessionCache.values()) {
+      void entry.session.release().catch(() => undefined);
+    }
+    this.sessionCache.clear();
+    this.audioCache.clear();
+    this.phonemizer = null;
+  }
+
   /** Pre-loads and compiles the phonemizer WASM and ONNX model for `voiceId` in parallel. */
   public warmup(voiceId: string): Promise<void> {
     if (this.sessionCache.has(voiceId) && this.phonemizer) {

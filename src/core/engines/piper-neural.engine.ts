@@ -6,6 +6,7 @@ import {
 } from '../../shared/types';
 import { PIPER_NEURAL_VOICES, resolvePiperVoiceForLang } from '../neural/piper-voices';
 import type { TTSEngineCapabilities, TTSEngineInterface } from './engine.interface';
+import { WebSpeechEngine } from './web-speech.engine';
 
 export interface NeuralSynthesizeRequest {
   readonly text: string;
@@ -415,6 +416,8 @@ export class PiperNeuralEngine implements TTSEngineInterface {
   private readonly audioPool = new SharedWebAudioPool();
   private readonly prefetchCache = new Map<string, Promise<PreparedNeuralAudio>>();
   private activePlayer: AudioPlaybackHandle | null = null;
+  private fallbackSpeechEngine: WebSpeechEngine | null = null;
+  private usingFallbackSpeech = false;
   private currentRate: PlaybackRate = 1;
   private preferWebAudio = false;
 
@@ -492,7 +495,42 @@ export class PiperNeuralEngine implements TTSEngineInterface {
       }).then((response) => ({ response }));
     }
 
-    const prepared = await preparedPromise;
+    let prepared: PreparedNeuralAudio;
+    try {
+      prepared = await preparedPromise;
+    } catch (err) {
+      if (options.signal?.aborted || (err instanceof TTSError && err.code === 'ABORTED')) {
+        throw new TTSError('ABORTED', 'Neural playback cancelled.');
+      }
+      // Fall back seamlessly to WebSpeechEngine if WASM executable memory is exhausted in the browser.
+      const errMsg = err instanceof Error ? err.message : String(err);
+      const isWasmOom = /out of memory|no available backend|aborted\(|executable memory/i.test(
+        errMsg
+      );
+      if (
+        isWasmOom &&
+        !this.customPlayerFactory &&
+        typeof window !== 'undefined' &&
+        typeof window.speechSynthesis !== 'undefined' &&
+        (window.speechSynthesis.getVoices?.().length ?? 0) > 0
+      ) {
+        if (!this.fallbackSpeechEngine) {
+          this.fallbackSpeechEngine = new WebSpeechEngine();
+        }
+        this.usingFallbackSpeech = true;
+        try {
+          await this.fallbackSpeechEngine.speak(trimmed, {
+            ...options,
+            voiceId: undefined,
+            rate: this.currentRate,
+          });
+          return;
+        } finally {
+          this.usingFallbackSpeech = false;
+        }
+      }
+      throw err;
+    }
 
     if (options.signal?.aborted) {
       throw new TTSError('ABORTED', 'Neural playback cancelled.');
@@ -551,21 +589,33 @@ export class PiperNeuralEngine implements TTSEngineInterface {
 
   public pause(): void {
     this.activePlayer?.pause();
+    if (this.usingFallbackSpeech) {
+      this.fallbackSpeechEngine?.pause();
+    }
   }
 
   public resume(): void {
     this.activePlayer?.resume();
+    if (this.usingFallbackSpeech) {
+      this.fallbackSpeechEngine?.resume();
+    }
   }
 
   public stop(): void {
     this.activePlayer?.stop();
     this.activePlayer = null;
+    if (this.usingFallbackSpeech) {
+      this.fallbackSpeechEngine?.stop();
+      this.usingFallbackSpeech = false;
+    }
     this.prefetchCache.clear();
     this.cancelTransport?.();
   }
 
   public dispose(): void {
     this.stop();
+    this.fallbackSpeechEngine?.dispose();
+    this.fallbackSpeechEngine = null;
     this.audioPool.dispose();
   }
 

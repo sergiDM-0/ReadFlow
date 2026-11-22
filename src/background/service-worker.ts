@@ -191,23 +191,11 @@ function syncToolbarFromStorage(): void {
     .catch(() => undefined);
 }
 
-function scheduleDefaultVoiceWarmup(): void {
-  void getExtensionStorage()
-    .getSettings()
-    .then((settings) => {
-      if (!settings.enabled || settings.engine !== 'piper-neural') {
-        return;
-      }
-      const uiLang =
-        (typeof navigator !== 'undefined' && navigator.language) ||
-        browser.i18n?.getUILanguage?.() ||
-        'es';
-      const defaultVoice = resolvePiperVoiceForLang(uiLang, settings.voicePreferences);
-      return warmupNeuralInBackground(defaultVoice.id);
-    })
-    .catch(() => {
-      // Warmup is best-effort; synthesis retries on demand if offline or blocked.
-    });
+function disposeFirefoxRuntime(): void {
+  if (firefoxRuntime) {
+    firefoxRuntime.dispose();
+    firefoxRuntime = null;
+  }
 }
 
 function registerContextMenu(): void {
@@ -348,14 +336,24 @@ async function sendToggleToActiveTab(
 browser.runtime.onInstalled?.addListener(() => {
   registerContextMenu();
   syncToolbarFromStorage();
-  scheduleDefaultVoiceWarmup();
 });
 
 browser.runtime.onStartup?.addListener(() => {
   registerContextMenu();
   syncToolbarFromStorage();
-  scheduleDefaultVoiceWarmup();
 });
+
+(
+  browser.runtime as unknown as { onSuspend?: { addListener: (fn: () => void) => void } }
+).onSuspend?.addListener(() => {
+  disposeFirefoxRuntime();
+});
+
+if (typeof globalThis.addEventListener === 'function') {
+  globalThis.addEventListener('pagehide', () => {
+    disposeFirefoxRuntime();
+  });
+}
 
 onSettingsChanged((nextSettings) => {
   applyToolbarIconAndBadge(nextSettings);
