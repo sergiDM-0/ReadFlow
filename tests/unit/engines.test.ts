@@ -141,6 +141,41 @@ describe('WebSpeechEngine', () => {
       true
     );
     expect(linuxEngine.capabilities.supportsPauseResume).toBe(false);
+
+    // Async voiceschanged event loads voices when initial getVoices() is empty
+    const listeners = new Map<string, () => void>();
+    let asyncVoices: Array<{
+      voiceURI: string;
+      name: string;
+      lang: string;
+      localService: boolean;
+      default: boolean;
+    }> = [];
+    const asyncSynth = {
+      ...mockSynth,
+      getVoices: vi.fn(() => asyncVoices),
+      addEventListener: vi.fn((ev: string, fn: () => void) => listeners.set(ev, fn)),
+      removeEventListener: vi.fn((ev: string) => listeners.delete(ev)),
+    };
+    const asyncEngine = new WebSpeechEngine(
+      asyncSynth as unknown as SpeechSynthesis,
+      MockUtterance as unknown as typeof SpeechSynthesisUtterance
+    );
+    const voicesPromise = asyncEngine.getVoices();
+    asyncVoices = [
+      { voiceURI: 'v1', name: 'Async ES', lang: 'es-MX', localService: true, default: false },
+    ];
+    listeners.get('voiceschanged')?.();
+    expect(await voicesPromise).toHaveLength(1);
+
+    // Unknown voiceId falls back gracefully without throwing
+    const unknownVoicePromise = engine.speak('Fallback', {
+      lang: 'es',
+      voiceId: 'non-existent',
+      rate: 1,
+    });
+    mockUtterances[mockUtterances.length - 1]?.onerror?.({ error: 'canceled' });
+    await expect(unknownVoicePromise).rejects.toMatchObject({ code: 'ABORTED' });
   });
 });
 
@@ -191,5 +226,103 @@ describe('LocalHttpEngine', () => {
       code: 'INVALID_ENDPOINT',
     });
     expect(transport).not.toHaveBeenCalled();
+  });
+
+  it('exercises defaultPlayAudio lifecycle (onended, onerror, play rejection, and abort)', async () => {
+    const origAudio = globalThis.Audio;
+    const origCreateUrl = URL.createObjectURL;
+    const origRevokeUrl = URL.revokeObjectURL;
+    URL.createObjectURL = vi.fn(() => 'blob:local-http');
+    URL.revokeObjectURL = vi.fn();
+
+    let lastAudio!: {
+      onended: (() => void) | null;
+      onerror: (() => void) | null;
+      pause: ReturnType<typeof vi.fn>;
+      play: ReturnType<typeof vi.fn>;
+    };
+
+    globalThis.Audio = vi.fn(function () {
+      lastAudio = {
+        onended: null,
+        onerror: null,
+        pause: vi.fn(),
+        play: vi.fn().mockResolvedValue(undefined),
+      };
+      return lastAudio;
+    }) as unknown as typeof Audio;
+
+    try {
+      const transport = vi
+        .fn()
+        .mockResolvedValue({ mimeType: 'audio/wav', audioBase64: 'UklGRg==' });
+      const engine = new LocalHttpEngine(
+        { endpointUrl: 'http://127.0.0.1:5000/tts', protocol: 'piper', timeoutMs: 5000 },
+        transport
+      );
+
+      expect((await engine.getVoices())[0]?.name).toContain('Piper');
+
+      // 1. Resolves on audio.onended
+      const p1 = engine.speak('Hi', { lang: 'en', rate: 1 });
+      await new Promise((r) => setTimeout(r, 5));
+      lastAudio.onended?.();
+      await expect(p1).resolves.toBeUndefined();
+
+      // 2. Rejects on audio.onerror
+      const p2 = engine.speak('Err', { lang: 'en', rate: 1 });
+      await new Promise((r) => setTimeout(r, 5));
+      lastAudio.onerror?.();
+      await expect(p2).rejects.toMatchObject({ code: 'SYNTHESIS_FAILED' });
+
+      // 3. Rejects when audio.play() rejects
+      globalThis.Audio = vi.fn(function () {
+        lastAudio = {
+          onended: null,
+          onerror: null,
+          pause: vi.fn(),
+          play: vi.fn().mockRejectedValue(new Error('blocked')),
+        };
+        return lastAudio;
+      }) as unknown as typeof Audio;
+      await expect(engine.speak('Blocked', { lang: 'en', rate: 1 })).rejects.toMatchObject({
+        code: 'SYNTHESIS_FAILED',
+      });
+
+      // 4. Aborts mid-playback via AbortController
+      globalThis.Audio = vi.fn(function () {
+        lastAudio = {
+          onended: null,
+          onerror: null,
+          pause: vi.fn(),
+          play: vi.fn().mockResolvedValue(undefined),
+        };
+        return lastAudio;
+      }) as unknown as typeof Audio;
+      const ctrl = new AbortController();
+      const p4 = engine.speak('Abort me', { lang: 'en', rate: 1, signal: ctrl.signal });
+      await new Promise((r) => setTimeout(r, 5));
+      ctrl.abort();
+      await expect(p4).rejects.toMatchObject({ code: 'ABORTED' });
+
+      // 5. Aborts mid-transport when engine.stop() is called
+      const slowTransport = vi.fn(
+        () =>
+          new Promise<{ mimeType: string; audioBase64: string }>((resolve) => {
+            setTimeout(() => resolve({ mimeType: 'audio/wav', audioBase64: 'UklGRg==' }), 20);
+          })
+      );
+      const slowEngine = new LocalHttpEngine(
+        { endpointUrl: 'http://127.0.0.1:5000/tts', protocol: 'piper', timeoutMs: 5000 },
+        slowTransport
+      );
+      const p5 = slowEngine.speak('Stop during fetch', { lang: 'en', rate: 1 });
+      slowEngine.stop();
+      await expect(p5).rejects.toMatchObject({ code: 'ABORTED' });
+    } finally {
+      globalThis.Audio = origAudio;
+      URL.createObjectURL = origCreateUrl;
+      URL.revokeObjectURL = origRevokeUrl;
+    }
   });
 });

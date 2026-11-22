@@ -91,5 +91,6 @@ describe('verbalizeMathAndQuantities', () => {
     expect(verbalizeMathAndQuantities('∀ x ∈ ℝ, x ∉ ∅ ⇒ ∑ ∞ ∫ ≡ ⇔ ∃', 'es')).toBe(
       'para todo x pertenece a ℝ, x no pertenece a ∅ implica sumatoria de infinito integral de idéntico a si y solo si existe'
     );
+    expect(verbalizeMathAndQuantities('2 + 3 = 5', '')).toBe('2 más 3 igual a 5');
   });
 });

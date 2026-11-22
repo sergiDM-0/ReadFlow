@@ -105,7 +105,10 @@ describe('ReadFlowContentApp integration', () => {
     (shadow?.querySelector('[data-es-action="rate"]') as HTMLButtonElement | null)?.click();
     await new Promise((r) => setTimeout(r, 10));
 
-    // Query playback state
+    // Query playback state & verify invalid/unknown messages are ignored cleanly
+    expect(messageListener!(null)).toBeUndefined();
+    expect(messageListener!({ type: 'UNKNOWN_MESSAGE' })).toBeUndefined();
+
     const stateRes = (await messageListener!({ type: 'GET_TAB_PLAYBACK_STATE' })) as {
       ok: boolean;
       data: { state: { status: string } };
@@ -194,12 +197,24 @@ describe('ReadFlowContentApp integration', () => {
       expect(pill?.querySelectorAll('svg')).toHaveLength(1);
       expect(pill?.querySelector('.es-pill-badge')?.textContent).toBe('ON');
 
+      // Append a Gemini response node to trigger GeminiAdapter -> enqueueStreamingSentences
+      const responseNode = document.createElement('model-response');
+      const md = document.createElement('div');
+      md.className = 'markdown';
+      const para = document.createElement('p');
+      para.textContent = 'Hola desde Gemini en streaming automático.';
+      md.appendChild(para);
+      responseNode.appendChild(md);
+      document.body.appendChild(responseNode);
+      await new Promise((r) => setTimeout(r, 80));
+
       pill?.click();
       expect(pill?.getAttribute('aria-pressed')).toBe('false');
       expect(pill?.querySelectorAll('svg')).toHaveLength(1);
       expect(pill?.querySelector('.es-pill-badge')?.textContent).toBe('OFF');
 
       app.destroy();
+      responseNode.remove();
     } finally {
       Object.defineProperty(window, 'location', {
         configurable: true,
@@ -300,6 +315,73 @@ describe('ReadFlowContentApp integration', () => {
       data: { state: { status: string } };
     };
     expect(stateRes.data.state.status).toBe('error');
+
+    // Empty text in COMMAND_TOGGLE_READ with collapsed selection returns active: false cleanly
+    vi.spyOn(window, 'getSelection').mockReturnValue({
+      isCollapsed: true,
+      rangeCount: 0,
+      toString: () => '',
+    } as unknown as Selection);
+    const emptyRes = (await messageListener!({
+      type: 'COMMAND_TOGGLE_READ',
+      payload: { source: 'shortcut', text: '   ' },
+    })) as { ok: boolean; data: { active: boolean } };
+    expect(emptyRes).toEqual({ ok: true, data: { active: false } });
+
+    // Exercise MiniPlayer controls & rate callback mounted by ReadFlowContentApp
+    const shadow = document.querySelector('readflow-ui')?.shadowRoot;
+    (shadow?.querySelector('[data-es-action="prev"]') as HTMLButtonElement | null)?.click();
+    (shadow?.querySelector('[data-es-action="next"]') as HTMLButtonElement | null)?.click();
+    (shadow?.querySelector('[data-es-action="toggle"]') as HTMLButtonElement | null)?.click();
+    const rateSel = shadow?.querySelector('[data-es-action="rate"]') as HTMLSelectElement | null;
+    if (rateSel) {
+      rateSel.value = '1.5';
+      rateSel.dispatchEvent(new Event('change'));
+    }
+    (shadow?.querySelector('[data-es-action="stop"]') as HTMLButtonElement | null)?.click();
+
+    // Simulate selecting text with autoReadSelection disabled -> shows FloatingButton, triggers warmup, and speaks on click
+    const selP = document.createElement('p');
+    selP.textContent =
+      'Texto de prueba para calentar el motor neuronal y activar el botón flotante.';
+    document.body.appendChild(selP);
+    const selRange = document.createRange();
+    selRange.selectNodeContents(selP);
+    selRange.getClientRects = () =>
+      [
+        { top: 10, left: 10, right: 180, bottom: 28, width: 170, height: 18 },
+      ] as unknown as DOMRectList;
+    const getSelSpy = vi.spyOn(window, 'getSelection').mockReturnValue({
+      isCollapsed: false,
+      rangeCount: 1,
+      toString: () => selP.textContent ?? '',
+      getRangeAt: () => selRange,
+    } as unknown as Selection);
+    document.dispatchEvent(new MouseEvent('mouseup', { clientX: 180, clientY: 20, bubbles: true }));
+    await new Promise((r) => setTimeout(r, 80));
+
+    const triggerBtn = document
+      .querySelector('readflow-ui')
+      ?.shadowRoot?.querySelector(
+        'button[data-es-role="floating-trigger"]'
+      ) as HTMLButtonElement | null;
+    expect(triggerBtn?.hidden).toBe(false);
+    triggerBtn?.click();
+    await new Promise((r) => setTimeout(r, 20));
+    getSelSpy.mockRestore();
+    selP.remove();
+
+    // Switching engine setting to local-http refreshes engine cleanly
+    const storageListener = vi.mocked(browser.storage.onChanged.addListener).mock.calls[0]?.[0] as
+      ((changes: Record<string, { newValue?: unknown }>, area: string) => void) | undefined;
+    storageListener?.(
+      {
+        [SETTINGS_STORAGE_KEY]: {
+          newValue: { ...DEFAULT_SETTINGS, engine: 'local-http', defaultRate: 1.5 },
+        },
+      },
+      'sync'
+    );
     app.destroy();
   });
 

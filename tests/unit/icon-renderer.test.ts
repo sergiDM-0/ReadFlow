@@ -38,6 +38,12 @@ describe('icon-renderer', () => {
     );
     expect(svgOn.querySelectorAll('circle')).toHaveLength(1);
     expect(svgOn.querySelector('stop')?.getAttribute('stop-color')).toBe('#7c3aed');
+    // Falls back to DEFAULT_APPEARANCE when invalid hex colors are provided
+    const fallbackSvg = createBrandIconSvg(
+      { iconBgColor: 'invalid', iconFgColor: 'invalid', accentColor: 'invalid' },
+      32
+    );
+    expect(fallbackSvg.querySelector('stop')?.getAttribute('stop-color')).toBe('#2563eb');
   });
 
   it('renders toolbar icon ImageData via OffscreenCanvas and handles disabled/autoRead states', () => {
@@ -84,6 +90,12 @@ describe('icon-renderer', () => {
 
     const disabledImg = renderToolbarIconImageData(DEFAULT_APPEARANCE, 16, { enabled: false });
     expect(disabledImg).toBe(fakeImageData);
+
+    const fallbackImg = renderToolbarIconImageData(
+      { iconBgColor: 'bad', iconFgColor: 'bad', accentColor: 'bad' },
+      16
+    );
+    expect(fallbackImg).toBe(fakeImageData);
 
     // Gracefully returns null when canvas context is unavailable
     vi.stubGlobal('OffscreenCanvas', undefined);

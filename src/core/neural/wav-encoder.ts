@@ -13,7 +13,7 @@ export function trimPcmSilence(samples: Float32Array, sampleRate: number): Float
 
   let firstActive = -1;
   for (let i = 0; i < samples.length; i += 1) {
-    if (Math.abs(samples[i] ?? 0) >= SILENCE_THRESHOLD) {
+    if (Math.abs(samples[i]!) >= SILENCE_THRESHOLD) {
       firstActive = i;
       break;
     }
@@ -24,7 +24,7 @@ export function trimPcmSilence(samples: Float32Array, sampleRate: number): Float
 
   let lastActive = samples.length - 1;
   for (let i = samples.length - 1; i >= firstActive; i -= 1) {
-    if (Math.abs(samples[i] ?? 0) >= SILENCE_THRESHOLD) {
+    if (Math.abs(samples[i]!) >= SILENCE_THRESHOLD) {
       lastActive = i;
       break;
     }
@@ -37,12 +37,6 @@ export function trimPcmSilence(samples: Float32Array, sampleRate: number): Float
 
   return start === 0 && end === samples.length ? samples : samples.subarray(start, end);
 }
-
-const IS_LITTLE_ENDIAN = (() => {
-  const buf = new ArrayBuffer(2);
-  new DataView(buf).setInt16(0, 0x0102, true);
-  return new Int16Array(buf)[0] === 0x0102;
-})();
 
 /** Encodes mono `Float32Array` PCM samples (`-1..1`) into a 16-bit RIFF/WAVE `ArrayBuffer`. */
 export function pcmToWavBuffer(samples: Float32Array, sampleRate: number): ArrayBuffer {
@@ -72,22 +66,11 @@ export function pcmToWavBuffer(samples: Float32Array, sampleRate: number): Array
   view.setUint32(36, 0x61746164, true); // 'data'
   view.setUint32(40, dataLength, true);
 
-  if (IS_LITTLE_ENDIAN) {
-    const pcm = new Int16Array(buffer, headerLength, samples.length);
-    for (let i = 0; i < samples.length; i += 1) {
-      const sample = samples[i] ?? 0;
-      const clamped = sample > 1 ? 1 : sample < -1 ? -1 : sample;
-      pcm[i] = clamped < 0 ? Math.round(clamped * 32768) : Math.round(clamped * 32767);
-    }
-  } else {
-    let offset = headerLength;
-    for (let i = 0; i < samples.length; i += 1) {
-      const sample = samples[i] ?? 0;
-      const clamped = sample > 1 ? 1 : sample < -1 ? -1 : sample;
-      const int16 = clamped < 0 ? Math.round(clamped * 32768) : Math.round(clamped * 32767);
-      view.setInt16(offset, int16, true);
-      offset += 2;
-    }
+  const pcm = new Int16Array(buffer, headerLength, samples.length);
+  for (let i = 0; i < samples.length; i += 1) {
+    const sample = samples[i]!;
+    const clamped = sample > 1 ? 1 : sample < -1 ? -1 : sample;
+    pcm[i] = clamped < 0 ? Math.round(clamped * 32768) : Math.round(clamped * 32767);
   }
 
   return buffer;
