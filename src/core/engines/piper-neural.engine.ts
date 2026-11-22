@@ -511,8 +511,7 @@ export class PiperNeuralEngine implements TTSEngineInterface {
         isWasmOom &&
         !this.customPlayerFactory &&
         typeof window !== 'undefined' &&
-        typeof window.speechSynthesis !== 'undefined' &&
-        (window.speechSynthesis.getVoices?.().length ?? 0) > 0
+        typeof window.speechSynthesis !== 'undefined'
       ) {
         if (!this.fallbackSpeechEngine) {
           this.fallbackSpeechEngine = new WebSpeechEngine();

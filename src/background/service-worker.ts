@@ -22,6 +22,7 @@ interface ChromeOffscreenApi {
 
 let firefoxRuntime: PiperRuntime | null = null;
 let offscreenCreatePromise: Promise<void> | null = null;
+let activeOffscreenVoiceId: string | null = null;
 
 function getChromeOffscreen(): ChromeOffscreenApi | null {
   const g = globalThis as unknown as { chrome?: { offscreen?: ChromeOffscreenApi } };
@@ -66,6 +67,20 @@ function isRecoverableWasmError(message: string): boolean {
   );
 }
 
+async function recycleOffscreenIfVoiceChanged(
+  offscreen: ChromeOffscreenApi,
+  voiceId: string
+): Promise<void> {
+  if (
+    offscreen.closeDocument &&
+    activeOffscreenVoiceId !== null &&
+    activeOffscreenVoiceId !== voiceId
+  ) {
+    activeOffscreenVoiceId = null;
+    await offscreen.closeDocument().catch(() => undefined);
+  }
+}
+
 async function sendOffscreenSynthesize(
   offscreen: ChromeOffscreenApi,
   request: {
@@ -74,7 +89,9 @@ async function sendOffscreenSynthesize(
     readonly rate?: number;
   }
 ): Promise<MessageResult<{ readonly mimeType: string; readonly audioBase64: string }>> {
+  await recycleOffscreenIfVoiceChanged(offscreen, request.voiceId);
   await ensureOffscreenDocument(offscreen);
+  activeOffscreenVoiceId = request.voiceId;
   return (await browser.runtime.sendMessage({
     type: 'OFFSCREEN_PIPER_SYNTHESIZE',
     payload: {
@@ -104,6 +121,7 @@ async function synthesizeNeuralInBackground(request: {
       response?.message &&
       isRecoverableWasmError(response.message)
     ) {
+      activeOffscreenVoiceId = null;
       await offscreen.closeDocument().catch(() => undefined);
       response = await sendOffscreenSynthesize(offscreen, request);
     }
@@ -137,7 +155,9 @@ async function cancelNeuralInBackground(): Promise<void> {
 async function warmupNeuralInBackground(voiceId: string): Promise<void> {
   const offscreen = getChromeOffscreen();
   if (offscreen) {
+    await recycleOffscreenIfVoiceChanged(offscreen, voiceId);
     await ensureOffscreenDocument(offscreen);
+    activeOffscreenVoiceId = voiceId;
     const response = (await browser.runtime.sendMessage({
       type: 'OFFSCREEN_PIPER_WARMUP',
       payload: { voiceId },

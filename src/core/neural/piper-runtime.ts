@@ -77,8 +77,10 @@ async function fetchCachedBytes(url: string): Promise<ArrayBuffer> {
       if (!response.ok) {
         throw new Error(`HTTP ${response.status} downloading voice model`);
       }
-      await cache.put(url, response.clone());
-      return await response.arrayBuffer();
+      const bytes = await response.arrayBuffer();
+      const cacheEntry = typeof Response === 'function' ? new Response(bytes) : response.clone();
+      await cache.put(url, cacheEntry);
+      return bytes;
     }
   } catch {
     // Fall through to direct fetch if Cache Storage is unavailable in private windows.
@@ -139,7 +141,13 @@ export class PiperRuntime {
     }
 
     this.warmupTargetVoiceId = voiceId;
-    const task = this.queue.then(() => this.ensureVoiceLoaded(voiceId).then(() => undefined));
+    const requestGen = this.generation;
+    const task = this.queue.then(async () => {
+      if (requestGen !== this.generation || this.warmupTargetVoiceId !== voiceId) {
+        return;
+      }
+      await this.ensureVoiceLoaded(voiceId);
+    });
     this.queue = task.catch(() => undefined);
     this.warmupPromise = task.finally(() => {
       if (this.warmupPromise === task) {
@@ -253,14 +261,21 @@ export class PiperRuntime {
 
     // Release any active ONNX session BEFORE fetching/allocating the next model (~60-115 MB)
     // so the 32-bit WASM heap never holds two models simultaneously.
+    let evictedSession = false;
     while (this.sessionCache.size >= MAX_CACHED_SESSIONS) {
       const oldestKey = this.sessionCache.keys().next().value;
       if (oldestKey === undefined) break;
       const evicted = this.sessionCache.get(oldestKey);
       this.sessionCache.delete(oldestKey);
       if (evicted) {
+        evictedSession = true;
+        this.audioCache.clear();
         await evicted.session.release().catch(() => undefined);
       }
+    }
+    if (evictedSession) {
+      // Yield a macrotask so SpiderMonkey/V8 can collect detached WASM buffers before next load.
+      await new Promise<void>((resolve) => setTimeout(resolve, 0));
     }
 
     const session = await this.createOnnxSession(modelUrl);
@@ -274,7 +289,7 @@ export class PiperRuntime {
     const modelBytes = await fetchCachedBytes(modelUrl);
     return ort.InferenceSession.create(new Uint8Array(modelBytes), {
       executionProviders: ['wasm'],
-      graphOptimizationLevel: 'all',
+      graphOptimizationLevel: 'basic',
       enableMemPattern: false,
       enableCpuMemArena: false,
     });
