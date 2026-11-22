@@ -38,7 +38,8 @@ export interface PiperSynthesizeResult {
 
 const CACHE_NAME = 'readflow-piper-models-v1';
 const MAX_AUDIO_CACHE_ENTRIES = 24;
-const MAX_CACHED_SESSIONS = 2;
+// Keep at most 1 active ONNX session in the 32-bit WASM heap to prevent OOM aborts when switching voices.
+const MAX_CACHED_SESSIONS = 1;
 // Fixed brisk natural cadence (~10% livelier) so voice timbre stays 100% consistent across speed changes.
 const BASE_CADENCE_SCALE = 0.9;
 const MIN_LENGTH_SCALE = 0.65;
@@ -64,18 +65,6 @@ function getModelCache(): Promise<Cache | null> {
   return modelCachePromise;
 }
 
-function resolveOptimalWasmThreads(): number {
-  const g = globalThis as unknown as {
-    crossOriginIsolated?: boolean;
-    navigator?: { hardwareConcurrency?: number };
-  };
-  if (g.crossOriginIsolated === true) {
-    const cores = g.navigator?.hardwareConcurrency ?? 2;
-    return Math.min(4, Math.max(1, cores));
-  }
-  return 1;
-}
-
 async function fetchCachedBytes(url: string): Promise<ArrayBuffer> {
   try {
     const cache = await getModelCache();
@@ -88,8 +77,10 @@ async function fetchCachedBytes(url: string): Promise<ArrayBuffer> {
       if (!response.ok) {
         throw new Error(`HTTP ${response.status} downloading voice model`);
       }
-      await cache.put(url, response.clone());
-      return await response.arrayBuffer();
+      const bytes = await response.arrayBuffer();
+      const cacheEntry = typeof Response === 'function' ? new Response(bytes) : response.clone();
+      await cache.put(url, cacheEntry);
+      return bytes;
     }
   } catch {
     // Fall through to direct fetch if Cache Storage is unavailable in private windows.
@@ -129,6 +120,17 @@ export class PiperRuntime {
     this.generation += 1;
   }
 
+  /** Releases active ONNX sessions and clears in-memory caches on extension unload/suspend. */
+  public dispose(): void {
+    this.cancelPending();
+    for (const entry of this.sessionCache.values()) {
+      void entry.session.release().catch(() => undefined);
+    }
+    this.sessionCache.clear();
+    this.audioCache.clear();
+    this.phonemizer = null;
+  }
+
   /** Pre-loads and compiles the phonemizer WASM and ONNX model for `voiceId` in parallel. */
   public warmup(voiceId: string): Promise<void> {
     if (this.sessionCache.has(voiceId) && this.phonemizer) {
@@ -139,7 +141,13 @@ export class PiperRuntime {
     }
 
     this.warmupTargetVoiceId = voiceId;
-    const task = this.queue.then(() => this.ensureVoiceLoaded(voiceId).then(() => undefined));
+    const requestGen = this.generation;
+    const task = this.queue.then(async () => {
+      if (requestGen !== this.generation || this.warmupTargetVoiceId !== voiceId) {
+        return;
+      }
+      await this.ensureVoiceLoaded(voiceId);
+    });
     this.queue = task.catch(() => undefined);
     this.warmupPromise = task.finally(() => {
       if (this.warmupPromise === task) {
@@ -238,40 +246,53 @@ export class PiperRuntime {
       return cached;
     }
 
-    ort.env.wasm.numThreads = resolveOptimalWasmThreads();
+    ort.env.wasm.numThreads = 1;
+    (ort.env.wasm as { proxy?: boolean }).proxy = false;
     ort.env.wasm.wasmPaths = this.wasmPaths.ortWasmDir;
 
     const { modelUrl, configUrl } = getPiperModelUrls(voiceId);
-    const [, configBytes, modelBytes] = await Promise.all([
+    const [, configBytes] = await Promise.all([
       this.ensurePhonemizerLoaded(),
       fetchCachedBytes(configUrl),
-      fetchCachedBytes(modelUrl),
     ]);
 
     const configText = new TextDecoder().decode(configBytes);
     const parsedConfig = JSON.parse(configText) as PiperModelConfig;
 
-    const session = await ort.InferenceSession.create(new Uint8Array(modelBytes), {
-      executionProviders: ['wasm'],
-      graphOptimizationLevel: 'all',
-      enableMemPattern: true,
-      enableCpuMemArena: true,
-    });
-
-    if (this.sessionCache.size >= MAX_CACHED_SESSIONS) {
+    // Release any active ONNX session BEFORE fetching/allocating the next model (~60-115 MB)
+    // so the 32-bit WASM heap never holds two models simultaneously.
+    let evictedSession = false;
+    while (this.sessionCache.size >= MAX_CACHED_SESSIONS) {
       const oldestKey = this.sessionCache.keys().next().value;
-      if (oldestKey !== undefined) {
-        const evicted = this.sessionCache.get(oldestKey);
-        this.sessionCache.delete(oldestKey);
-        if (evicted) {
-          void evicted.session.release().catch(() => undefined);
-        }
+      if (oldestKey === undefined) break;
+      const evicted = this.sessionCache.get(oldestKey);
+      this.sessionCache.delete(oldestKey);
+      if (evicted) {
+        evictedSession = true;
+        this.audioCache.clear();
+        await evicted.session.release().catch(() => undefined);
       }
     }
+    if (evictedSession) {
+      // Yield a macrotask so SpiderMonkey/V8 can collect detached WASM buffers before next load.
+      await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    }
+
+    const session = await this.createOnnxSession(modelUrl);
 
     const entry: CachedVoiceSession = { session, modelConfig: parsedConfig };
     this.sessionCache.set(voiceId, entry);
     return entry;
+  }
+
+  private async createOnnxSession(modelUrl: string): Promise<ort.InferenceSession> {
+    const modelBytes = await fetchCachedBytes(modelUrl);
+    return ort.InferenceSession.create(new Uint8Array(modelBytes), {
+      executionProviders: ['wasm'],
+      graphOptimizationLevel: 'basic',
+      enableMemPattern: false,
+      enableCpuMemArena: false,
+    });
   }
 
   private async phonemize(text: string, espeakVoice: string): Promise<number[]> {
@@ -358,16 +379,25 @@ export class PiperRuntime {
     }
 
     const outputs = await session.run(feeds);
-    const outputTensor = outputs.output;
-    if (!outputTensor || !(outputTensor.data instanceof Float32Array)) {
-      throw new Error('Piper ONNX output missing Float32 PCM audio.');
-    }
+    try {
+      const outputTensor = outputs.output;
+      if (!outputTensor || !(outputTensor.data instanceof Float32Array)) {
+        throw new Error('Piper ONNX output missing Float32 PCM audio.');
+      }
 
-    const trimmedPcm = trimPcmSilence(outputTensor.data, modelConfig.audio.sample_rate);
-    const wavBuffer = pcmToWavBuffer(trimmedPcm, modelConfig.audio.sample_rate);
-    return {
-      mimeType: 'audio/wav',
-      audioBase64: arrayBufferToBase64(wavBuffer),
-    };
+      const trimmedPcm = trimPcmSilence(outputTensor.data, modelConfig.audio.sample_rate);
+      const wavBuffer = pcmToWavBuffer(trimmedPcm, modelConfig.audio.sample_rate);
+      return {
+        mimeType: 'audio/wav',
+        audioBase64: arrayBufferToBase64(wavBuffer),
+      };
+    } finally {
+      for (const tensor of Object.values(feeds)) {
+        (tensor as { dispose?: () => void }).dispose?.();
+      }
+      for (const tensor of Object.values(outputs)) {
+        (tensor as { dispose?: () => void }).dispose?.();
+      }
+    }
   }
 }

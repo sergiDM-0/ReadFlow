@@ -18,6 +18,7 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - run: npm run format:check
       - run: npm run lint
       - run: npm run typecheck
       - run: npm run test:coverage
@@ -30,6 +31,7 @@ jobs:
           mkdir -p release-artifacts
           (cd dist/chrome && zip -r "../../release-artifacts/readflow-chrome-${TAG}.zip" .)
           (cd dist/firefox && zip -r "../../release-artifacts/readflow-firefox-${TAG}.zip" .)
+          git archive --format=zip -o "release-artifacts/readflow-source-${TAG}.zip" HEAD
           git archive --format=tar.gz -o "release-artifacts/readflow-source-${TAG}.tar.gz" HEAD
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2

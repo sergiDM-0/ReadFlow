@@ -12,6 +12,7 @@ const CONTEXT_MENU_ID = 'readflow-read-selection';
 
 interface ChromeOffscreenApi {
   hasDocument?: () => Promise<boolean>;
+  closeDocument?: () => Promise<void>;
   createDocument: (params: {
     url: string;
     reasons: string[];
@@ -21,6 +22,7 @@ interface ChromeOffscreenApi {
 
 let firefoxRuntime: PiperRuntime | null = null;
 let offscreenCreatePromise: Promise<void> | null = null;
+let activeOffscreenVoiceId: string | null = null;
 
 function getChromeOffscreen(): ChromeOffscreenApi | null {
   const g = globalThis as unknown as { chrome?: { offscreen?: ChromeOffscreenApi } };
@@ -56,6 +58,53 @@ async function ensureOffscreenDocument(offscreen: ChromeOffscreenApi): Promise<v
   await offscreenCreatePromise;
 }
 
+function isRecoverableWasmError(message: string): boolean {
+  const lower = message.toLowerCase();
+  return (
+    lower.includes('out of memory') ||
+    lower.includes('no available backend') ||
+    lower.includes('aborted(')
+  );
+}
+
+async function recycleOffscreenIfVoiceChanged(
+  offscreen: ChromeOffscreenApi,
+  voiceId: string
+): Promise<void> {
+  if (
+    offscreen.closeDocument &&
+    activeOffscreenVoiceId !== null &&
+    activeOffscreenVoiceId !== voiceId
+  ) {
+    activeOffscreenVoiceId = null;
+    await offscreen.closeDocument().catch(() => undefined);
+  }
+}
+
+async function sendOffscreenSynthesize(
+  offscreen: ChromeOffscreenApi,
+  request: {
+    readonly text: string;
+    readonly voiceId: string;
+    readonly rate?: number;
+  }
+): Promise<MessageResult<{ readonly mimeType: string; readonly audioBase64: string }>> {
+  await recycleOffscreenIfVoiceChanged(offscreen, request.voiceId);
+  await ensureOffscreenDocument(offscreen);
+  activeOffscreenVoiceId = request.voiceId;
+  return (await browser.runtime.sendMessage({
+    type: 'OFFSCREEN_PIPER_SYNTHESIZE',
+    payload: {
+      text: request.text,
+      voiceId: request.voiceId,
+      rate: request.rate as import('../shared/types').PlaybackRate | undefined,
+    },
+  } satisfies ExtensionMessage)) as MessageResult<{
+    readonly mimeType: string;
+    readonly audioBase64: string;
+  }>;
+}
+
 async function synthesizeNeuralInBackground(request: {
   readonly text: string;
   readonly voiceId: string;
@@ -63,18 +112,19 @@ async function synthesizeNeuralInBackground(request: {
 }): Promise<{ readonly mimeType: string; readonly audioBase64: string }> {
   const offscreen = getChromeOffscreen();
   if (offscreen) {
-    await ensureOffscreenDocument(offscreen);
-    const response = (await browser.runtime.sendMessage({
-      type: 'OFFSCREEN_PIPER_SYNTHESIZE',
-      payload: {
-        text: request.text,
-        voiceId: request.voiceId,
-        rate: request.rate as import('../shared/types').PlaybackRate | undefined,
-      },
-    } satisfies ExtensionMessage)) as MessageResult<{
-      readonly mimeType: string;
-      readonly audioBase64: string;
-    }>;
+    let response = await sendOffscreenSynthesize(offscreen, request);
+
+    // If WASM runtime aborted (e.g., OOM in offscreen), recycle the offscreen document once cleanly.
+    if (
+      (!response || !response.ok) &&
+      offscreen.closeDocument &&
+      response?.message &&
+      isRecoverableWasmError(response.message)
+    ) {
+      activeOffscreenVoiceId = null;
+      await offscreen.closeDocument().catch(() => undefined);
+      response = await sendOffscreenSynthesize(offscreen, request);
+    }
 
     if (!response || !response.ok) {
       throw new Error(
@@ -105,7 +155,9 @@ async function cancelNeuralInBackground(): Promise<void> {
 async function warmupNeuralInBackground(voiceId: string): Promise<void> {
   const offscreen = getChromeOffscreen();
   if (offscreen) {
+    await recycleOffscreenIfVoiceChanged(offscreen, voiceId);
     await ensureOffscreenDocument(offscreen);
+    activeOffscreenVoiceId = voiceId;
     const response = (await browser.runtime.sendMessage({
       type: 'OFFSCREEN_PIPER_WARMUP',
       payload: { voiceId },
@@ -159,23 +211,11 @@ function syncToolbarFromStorage(): void {
     .catch(() => undefined);
 }
 
-function scheduleDefaultVoiceWarmup(): void {
-  void getExtensionStorage()
-    .getSettings()
-    .then((settings) => {
-      if (!settings.enabled || settings.engine !== 'piper-neural') {
-        return;
-      }
-      const uiLang =
-        (typeof navigator !== 'undefined' && navigator.language) ||
-        browser.i18n?.getUILanguage?.() ||
-        'es';
-      const defaultVoice = resolvePiperVoiceForLang(uiLang, settings.voicePreferences);
-      return warmupNeuralInBackground(defaultVoice.id);
-    })
-    .catch(() => {
-      // Warmup is best-effort; synthesis retries on demand if offline or blocked.
-    });
+function disposeFirefoxRuntime(): void {
+  if (firefoxRuntime) {
+    firefoxRuntime.dispose();
+    firefoxRuntime = null;
+  }
 }
 
 function registerContextMenu(): void {
@@ -316,14 +356,24 @@ async function sendToggleToActiveTab(
 browser.runtime.onInstalled?.addListener(() => {
   registerContextMenu();
   syncToolbarFromStorage();
-  scheduleDefaultVoiceWarmup();
 });
 
 browser.runtime.onStartup?.addListener(() => {
   registerContextMenu();
   syncToolbarFromStorage();
-  scheduleDefaultVoiceWarmup();
 });
+
+(
+  browser.runtime as unknown as { onSuspend?: { addListener: (fn: () => void) => void } }
+).onSuspend?.addListener(() => {
+  disposeFirefoxRuntime();
+});
+
+if (typeof globalThis.addEventListener === 'function') {
+  globalThis.addEventListener('pagehide', () => {
+    disposeFirefoxRuntime();
+  });
+}
 
 onSettingsChanged((nextSettings) => {
   applyToolbarIconAndBadge(nextSettings);

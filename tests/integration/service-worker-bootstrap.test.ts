@@ -14,6 +14,7 @@ vi.mock('../../src/core/neural/piper-runtime', () => ({
     synthesize: piperSynthesizeMock,
     warmup: piperWarmupMock,
     cancelPending: piperCancelMock,
+    dispose: vi.fn(),
   })),
 }));
 
@@ -151,8 +152,8 @@ describe('service-worker entrypoint wiring', () => {
     );
     expect(ignoredWarmup).toBeUndefined();
 
-    // Firefox path warmup ran on startup/install
-    expect(piperWarmupMock).toHaveBeenCalled();
+    // Startup does not eagerly compile WASM on extension reload (lazy warmup on demand prevents Firefox OOM)
+    expect(piperWarmupMock).not.toHaveBeenCalled();
 
     // Chrome offscreen path for NEURAL_TTS_SYNTHESIZE and NEURAL_TTS_WARMUP
     const createDocument = vi.fn().mockResolvedValue(undefined);

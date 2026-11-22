@@ -306,7 +306,6 @@ export class ReadFlowContentApp {
     }
 
     this.mountAutoReadPill();
-    this.warmupNeuralForLang(document.documentElement.lang || navigator.language || 'es');
   }
 
   private isTopFrame(): boolean {
