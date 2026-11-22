@@ -489,7 +489,7 @@ function getLexicon(lang?: string): MathLocaleLexicon | null {
   if (!normalized) {
     return ES_LEXICON;
   }
-  const prefix = normalized.split(/[-_]/)[0] ?? '';
+  const prefix = normalized.split(/[-_]/)[0]!;
   return LEXICONS[prefix] ?? null;
 }
 

@@ -157,12 +157,22 @@ describe('service-worker entrypoint wiring', () => {
     // Startup does not eagerly compile WASM on extension reload (lazy warmup on demand prevents Firefox OOM)
     expect(piperWarmupMock).not.toHaveBeenCalled();
 
-    // Chrome offscreen path for NEURAL_TTS_SYNTHESIZE and NEURAL_TTS_WARMUP
+    // Chrome offscreen path for NEURAL_TTS_SYNTHESIZE, voice-switch recycling, OOM recovery, and NEURAL_TTS_WARMUP
     const createDocument = vi.fn().mockResolvedValue(undefined);
+    const closeDocument = vi.fn().mockResolvedValue(undefined);
     (globalThis as unknown as { chrome?: unknown }).chrome = {
-      offscreen: { hasDocument: vi.fn().mockResolvedValue(false), createDocument },
+      offscreen: { hasDocument: vi.fn().mockResolvedValue(false), createDocument, closeDocument },
     };
     vi.mocked(browser.runtime.sendMessage)
+      .mockResolvedValueOnce({
+        ok: true,
+        data: { mimeType: 'audio/wav', audioBase64: 'UklGRg==' },
+      })
+      .mockResolvedValueOnce({
+        ok: false,
+        code: 'SYNTHESIS_FAILED',
+        message: 'Aborted(InternalError: out of memory)',
+      })
       .mockResolvedValueOnce({
         ok: true,
         data: { mimeType: 'audio/wav', audioBase64: 'UklGRg==' },
@@ -178,6 +188,17 @@ describe('service-worker entrypoint wiring', () => {
     expect(createDocument).toHaveBeenCalledOnce();
     expect(neuralRes).toMatchObject({ ok: true });
 
+    // Switching voice triggers offscreen recycling and recovers from OOM error by retrying once
+    const switchedRes = await messageListeners[0]?.(
+      {
+        type: 'NEURAL_TTS_SYNTHESIZE',
+        payload: { text: 'Hello', lang: 'en', voiceId: 'en_US-hfc_female-medium', rate: 1 },
+      },
+      { id: browser.runtime.id }
+    );
+    expect(switchedRes).toMatchObject({ ok: true });
+    expect(closeDocument).toHaveBeenCalledTimes(2);
+
     const warmupRes = await messageListeners[0]?.(
       { type: 'NEURAL_TTS_WARMUP', payload: { lang: 'es' } },
       { id: browser.runtime.id }
@@ -189,6 +210,8 @@ describe('service-worker entrypoint wiring', () => {
       { id: browser.runtime.id }
     );
     expect(cancelRes).toEqual({ ok: true, data: { cancelled: true } });
+
+    window.dispatchEvent(new Event('pagehide'));
 
     // Also test Chrome offscreen background playback fallback when tabs.sendMessage rejects
     vi.mocked(browser.runtime.sendMessage).mockResolvedValue({

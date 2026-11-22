@@ -78,8 +78,7 @@ async function fetchCachedBytes(url: string): Promise<ArrayBuffer> {
         throw new Error(`HTTP ${response.status} downloading voice model`);
       }
       const bytes = await response.arrayBuffer();
-      const cacheEntry = typeof Response === 'function' ? new Response(bytes) : response.clone();
-      await cache.put(url, cacheEntry);
+      await cache.put(url, new Response(bytes));
       return bytes;
     }
   } catch {
@@ -362,7 +361,7 @@ export class PiperRuntime {
 
     const inputData = new BigInt64Array(phonemeIds.length);
     for (let i = 0; i < phonemeIds.length; i += 1) {
-      inputData[i] = BigInt(phonemeIds[i] ?? 0);
+      inputData[i] = BigInt(phonemeIds[i]!);
     }
     const feeds: Record<string, ort.Tensor> = {
       input: new ort.Tensor('int64', inputData, [1, phonemeIds.length]),
@@ -379,25 +378,16 @@ export class PiperRuntime {
     }
 
     const outputs = await session.run(feeds);
-    try {
-      const outputTensor = outputs.output;
-      if (!outputTensor || !(outputTensor.data instanceof Float32Array)) {
-        throw new Error('Piper ONNX output missing Float32 PCM audio.');
-      }
-
-      const trimmedPcm = trimPcmSilence(outputTensor.data, modelConfig.audio.sample_rate);
-      const wavBuffer = pcmToWavBuffer(trimmedPcm, modelConfig.audio.sample_rate);
-      return {
-        mimeType: 'audio/wav',
-        audioBase64: arrayBufferToBase64(wavBuffer),
-      };
-    } finally {
-      for (const tensor of Object.values(feeds)) {
-        (tensor as { dispose?: () => void }).dispose?.();
-      }
-      for (const tensor of Object.values(outputs)) {
-        (tensor as { dispose?: () => void }).dispose?.();
-      }
+    const outputTensor = outputs.output;
+    if (!outputTensor || !(outputTensor.data instanceof Float32Array)) {
+      throw new Error('Piper ONNX output missing Float32 PCM audio.');
     }
+
+    const trimmedPcm = trimPcmSilence(outputTensor.data, modelConfig.audio.sample_rate);
+    const wavBuffer = pcmToWavBuffer(trimmedPcm, modelConfig.audio.sample_rate);
+    return {
+      mimeType: 'audio/wav',
+      audioBase64: arrayBufferToBase64(wavBuffer),
+    };
   }
 }
