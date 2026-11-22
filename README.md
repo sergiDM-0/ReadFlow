@@ -11,7 +11,7 @@
 [![Website](https://img.shields.io/badge/Website-ReadFlow-0ea5e9.svg)](https://sergidm-0.github.io/ReadFlow/)
 [![Privacy](https://img.shields.io/badge/Privacy-100%25%20Local-success.svg)](PRIVACY.md)
 [![Security](https://img.shields.io/badge/Security-Policy-blue.svg)](SECURITY.md)
-[![UI Bundle](https://img.shields.io/badge/Injected%20UI%20%2B%20Popup-153.1%20KB%20%28%3C200%20KB%29-brightgreen.svg)](scripts/check-size.mjs)
+[![UI Bundle](https://img.shields.io/badge/Injected%20UI%20%2B%20Popup-183.1%20KB%20%28%3C200%20KB%29-brightgreen.svg)](scripts/check-size.mjs)
 
 ---
 
@@ -87,11 +87,11 @@ Todos los scripts definidos en [`package.json`](./package.json):
 | `npm run build`         | `node scripts/build.mjs chrome && node scripts/build.mjs firefox`   | Compila los paquetes MV3 de Chrome (`dist/chrome`) y Firefox (`dist/firefox`) con Vite/esbuild y copia los binarios WASM locales. |
 | `npm run build:chrome`  | `node scripts/build.mjs chrome`                                     | Compila únicamente el paquete MV3 para Chromium (incluye `offscreen.html` + `offscreen.js`).                                      |
 | `npm run build:firefox` | `node scripts/build.mjs firefox`                                    | Compila únicamente el paquete MV3 para Firefox/Gecko.                                                                             |
-| `npm run check:size`    | `node scripts/check-size.mjs`                                       | Verifica que la UI inyectada + Popup + Iconos pesen `< 200 KB` (actualmente **153.1 KB**) y que los assets WASM estén completos.  |
+| `npm run check:size`    | `node scripts/check-size.mjs`                                       | Verifica que la UI inyectada + Popup + Iconos pesen `< 200 KB` (actualmente **183.1 KB**) y que los assets WASM estén completos.  |
 | `npm run typecheck`     | `tsc --noEmit`                                                      | Verificación estricta de tipos TypeScript (`strict: true`).                                                                       |
 | `npm run lint`          | `eslint src tests scripts`                                          | Análisis estático con ESLint 9 y `typescript-eslint`.                                                                             |
 | `npm run format:check`  | `prettier --check "src/**/*.ts" "tests/**/*.ts" "scripts/**/*.mjs"` | Verifica formato de código con Prettier.                                                                                          |
-| `npm test`              | `vitest run`                                                        | Ejecuta las 19 suites unitarias y de integración en Vitest + `happy-dom`.                                                         |
+| `npm test`              | `vitest run`                                                        | Ejecuta las 20 suites unitarias y de integración en Vitest + `happy-dom`.                                                         |
 | `npm run test:watch`    | `vitest`                                                            | Ejecuta Vitest en modo interactivo (_watch_).                                                                                     |
 | `npm run test:coverage` | `vitest run --coverage`                                             | Ejecuta pruebas verificando los umbrales globales `>= 80 %` en statements, branches, functions y lines.                           |
 | `npm run test:e2e`      | `playwright test`                                                   | Ejecuta las pruebas E2E en Chromium real con Playwright (`tests/e2e/extension.spec.ts`).                                          |
@@ -113,11 +113,7 @@ src/
 │   └── offscreen.ts              # Listener de OFFSCREEN_PIPER_SYNTHESIZE / WARMUP / CANCEL sobre PiperRuntime
 ├── content/
 │   ├── index.ts                  # Punto de entrada IIFE del content script
-│   ├── app.ts                    <p align="center">
-  <img src="assets/logo-name.jpeg" alt="ReadFlow" width="320" />
-</p>
-
-# ReadFlowContentApp: coordina UI Shadow DOM, streaming procedural y motores
+│   ├── app.ts                    # ReadFlowContentApp: coordina UI Shadow DOM, streaming procedural y motores
 │   ├── selection-handler.ts      # SelectionHandler y clampFloatingPosition()
 │   ├── adapters/
 │   │   ├── gemini-selectors.ts   # GEMINI_SELECTORS: selectores DOM aislados para gemini.google.com
@@ -130,7 +126,7 @@ src/
 │       └── styles.ts             # SHADOW_UI_STYLES: hoja CSS encapsulada con soporte light/dark y color unificado
 ├── core/
 │   ├── cleaner.ts                # cleanText(), extractCleanTextFromElement(), extractCleanTextFromRange() (código, URLs, adjuntos y deduplicación KaTeX/MathML)
-│   ├── math-verbalizer.ts        # verbalizeMathAndQuantities(): lectura natural de comparaciones, raíces, potencias, fracciones, divisas y unidades (ES/EN)
+│   ├── math-verbalizer.ts        # verbalizeMathAndQuantities(): lectura natural de comparaciones, raíces, potencias, fracciones, divisas y unidades (ES/EN/PT/FR/DE/IT)
 │   ├── segmenter.ts              # segmentSentences() y segmentForStreaming() (rampa 48 -> 95 -> 140 -> 175 chars)
 │   ├── procedural-stream.ts      # createProceduralTextStream(): paginación perezosa de ~640 chars para textos largos
 │   ├── language-detector.ts      # detectLanguage(), detectLanguageHeuristic(), selectPreferredVoice()

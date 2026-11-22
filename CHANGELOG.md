@@ -5,7 +5,7 @@ All notable changes to **ReadFlow** will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.4.0] - 2026-11-22
 
 ### Added
 
@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Extended `verbalizeMathAndQuantities()` and `cleanText()` code-block placeholders beyond `es`/`en` to cover all 6 supported languages: Portuguese (`pt-BR`), French (`fr-FR`), German (`de-DE`), and Italian (`it-IT`).
 - **GitHub Pages Homepage & Manifest Identity (`site/`, `pages.yml`, `manifest.*.json`)**:
   - Added static ReadFlow landing page (`site/index.html`, `site/styles.css`), automated GitHub Pages deployment workflow (`.github/workflows/pages.yml`), and `author` / `homepage_url` (`https://sergidm-0.github.io/ReadFlow/`) metadata in `manifest.chrome.json` and `manifest.firefox.json`.
+- **Screenshots Gallery, Demo Video & AMO Reproducible Build Guide (`assets/screenshots/`, `README.md`, `site/`, `SOURCE_CODE_REVIEW.md`, `release.yml`)**:
+  - Added product screenshots and demo video to `README.md` and GitHub Pages (`site/index.html`, `site/styles.css`), documented reproducible Firefox builds in `SOURCE_CODE_REVIEW.md`, and bundled source archives (`readflow-source-<tag>.zip` / `.tar.gz`) in `.github/workflows/release.yml`.
 - **Store & Governance Readiness (`PRIVACY.md`, `manifest.firefox.json`, `.github/`)**:
   - Added public Privacy Policy (`PRIVACY.md`) linked from `README.md` and declared `"data_collection_permissions": { "required": ["none"] }` in `manifest.firefox.json`.
   - Added `.github/CODEOWNERS`, `.github/ISSUE_TEMPLATE/config.yml`, and Prettier `format:check` + least-privilege `permissions` to `.github/workflows/ci.yml`.
@@ -21,9 +23,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Language Detection, Voice Loading & Audio Encoding Performance**:
   - Replaced nested stopword array scans in `language-detector.ts` with a precomputed `O(1)` `WORD_TO_LANGS` map, added Italian (`it`) stopwords/diacritics, and enabled `preferFastLocal: true` in streaming playback (`app.ts`) to skip redundant IPC roundtrips.
-  - Added eager ONNX `InferenceSession` release (`MAX_CACHED_SESSIONS = 1`) before allocating a new voice model, disabled WASM CPU memory arena hoarding (`enableCpuMemArena: false`, `enableMemPattern: false`), disposed per-utterance ONNX tensors in `piper-runtime.ts`, cached the `CacheStorage` handle (`getModelCache()`), used direct `BigInt64Array` allocation, `Int16Array` little-endian WAV encoding in `wav-encoder.ts`, and proactive page-language warmup on `ReadFlowContentApp` initialization.
+  - Added eager ONNX `InferenceSession` release (`MAX_CACHED_SESSIONS = 1`) before allocating a new voice model, `PiperRuntime.dispose()` cleanup, disabled WASM CPU memory arena/pattern/proxy worker hoarding (`enableCpuMemArena: false`, `enableMemPattern: false`, `proxy = false`), cached the `CacheStorage` handle (`getModelCache()`), used direct `BigInt64Array` allocation, `Int16Array` little-endian WAV encoding in `wav-encoder.ts`, and proactive page-language warmup on `ReadFlowContentApp` initialization.
 - **Unified ReadFlow Brand Icons**:
   - Updated extension/dock icons (`public/icons/icon-{16,32,48,128}.png`), popup brand/preview slots (`popup-controller.ts`), and `README.md` banner (`assets/logo-name.jpeg`), removing the legacy canvas icon override in `service-worker.ts`.
+
+### Fixed
+
+- **WASM Memory Exhaustion Recovery & Seamless WebSpeech Fallback (`piper-runtime.ts`, `service-worker.ts`, `piper-neural.engine.ts`)**:
+  - Prevented Firefox/Chrome WebAssembly executable memory exhaustion across extension reloads and repeated voice switches via lazy warmup, offscreen document recycling on voice switch or OOM abort, and automatic fallback to `WebSpeechEngine`.
+- **Vitest 5.1.1 AST Coverage & Mock Constructor Compatibility (`vitest.config.ts`, `wav-encoder.ts`, `tests/`)**:
+  - Updated test mocks to function constructors for Vitest v4/v5 and expanded unit/integration coverage above the 80% global threshold.
 
 ## [1.3.2] - 2026-11-20
 
