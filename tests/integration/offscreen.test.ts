@@ -8,11 +8,14 @@ const { synthesizeMock, warmupMock, cancelPendingMock } = vi.hoisted(() => ({
 }));
 
 vi.mock('../../src/core/neural/piper-runtime', () => ({
-  PiperRuntime: vi.fn().mockImplementation(() => ({
-    synthesize: synthesizeMock,
-    warmup: warmupMock,
-    cancelPending: cancelPendingMock,
-  })),
+  PiperRuntime: vi.fn(function () {
+    return {
+      synthesize: synthesizeMock,
+      warmup: warmupMock,
+      cancelPending: cancelPendingMock,
+      dispose: vi.fn(),
+    };
+  }),
 }));
 
 describe('offscreen Piper neural document listener', () => {
@@ -109,7 +112,7 @@ describe('offscreen Piper neural document listener', () => {
     const origRevokeObjectUrl = URL.revokeObjectURL;
     URL.createObjectURL = vi.fn(() => 'blob:offscreen-audio');
     URL.revokeObjectURL = vi.fn();
-    globalThis.Audio = vi.fn().mockImplementation(() => {
+    globalThis.Audio = vi.fn(function () {
       const instance = {
         src: '',
         defaultPlaybackRate: 1,
@@ -137,15 +140,17 @@ describe('offscreen Piper neural document listener', () => {
       expect(lastAudioInstance).not.toBeNull();
 
       // Cancelling while playing settles the pending playAudioInOffscreen promise cleanly
-      globalThis.Audio = vi.fn().mockImplementation(() => ({
-        src: '',
-        defaultPlaybackRate: 1,
-        playbackRate: 1,
-        onended: null,
-        onerror: null,
-        play: vi.fn().mockResolvedValue(undefined),
-        pause: vi.fn(),
-      })) as unknown as typeof Audio;
+      globalThis.Audio = vi.fn(function () {
+        return {
+          src: '',
+          defaultPlaybackRate: 1,
+          playbackRate: 1,
+          onended: null,
+          onerror: null,
+          play: vi.fn().mockResolvedValue(undefined),
+          pause: vi.fn(),
+        };
+      }) as unknown as typeof Audio;
 
       const pendingPlay = listener!(
         {
@@ -158,15 +163,17 @@ describe('offscreen Piper neural document listener', () => {
       await expect(pendingPlay).resolves.toEqual({ ok: true, data: { played: true } });
 
       // Playback rejection returns ok: false
-      globalThis.Audio = vi.fn().mockImplementation(() => ({
-        src: '',
-        defaultPlaybackRate: 1,
-        playbackRate: 1,
-        onended: null,
-        onerror: null,
-        play: vi.fn().mockRejectedValue(new Error('Autoplay blocked')),
-        pause: vi.fn(),
-      })) as unknown as typeof Audio;
+      globalThis.Audio = vi.fn(function () {
+        return {
+          src: '',
+          defaultPlaybackRate: 1,
+          playbackRate: 1,
+          onended: null,
+          onerror: null,
+          play: vi.fn().mockRejectedValue(new Error('Autoplay blocked')),
+          pause: vi.fn(),
+        };
+      }) as unknown as typeof Audio;
 
       const errPlay = await listener!(
         {
@@ -182,7 +189,7 @@ describe('offscreen Piper neural document listener', () => {
       });
 
       // Audio onerror event also rejects cleanly
-      globalThis.Audio = vi.fn().mockImplementation(() => {
+      globalThis.Audio = vi.fn(function () {
         const instance = {
           src: '',
           defaultPlaybackRate: 1,
