@@ -8,11 +8,14 @@ const { synthesizeMock, warmupMock, cancelPendingMock } = vi.hoisted(() => ({
 }));
 
 vi.mock('../../src/core/neural/piper-runtime', () => ({
-  PiperRuntime: vi.fn().mockImplementation(() => ({
-    synthesize: synthesizeMock,
-    warmup: warmupMock,
-    cancelPending: cancelPendingMock,
-  })),
+  PiperRuntime: vi.fn(function () {
+    return {
+      synthesize: synthesizeMock,
+      warmup: warmupMock,
+      cancelPending: cancelPendingMock,
+      dispose: vi.fn(),
+    };
+  }),
 }));
 
 describe('offscreen Piper neural document listener', () => {
