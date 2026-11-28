@@ -32,7 +32,7 @@ jobs:
           cp assets/logo-name.jpeg _site/assets/logo-name.jpeg
           cp -r assets/screenshots/* _site/assets/screenshots/
           cp public/icons/icon-128.png _site/assets/icon-128.png
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: _site
 
